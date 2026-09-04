@@ -6,11 +6,8 @@ public interface IAuditService
         string action,
         Guid? userId = null,
         Guid? clinicId = null,
-        string? entityType = null,
+        string? entityName = null,
         Guid? entityId = null,
-        string? ipAddress = null,
-        string? userAgent = null,
-        bool isSuccess = true,
-        string? errorMessage = null,
+        string? description = null,
         CancellationToken cancellationToken = default);
 }

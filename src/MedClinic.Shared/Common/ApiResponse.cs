@@ -8,11 +8,15 @@ public class ApiResponse<T>
     public List<string>? Errors { get; set; }
     public string? TraceId { get; set; }
 
-    public static ApiResponse<T> Ok(T data, string? message = null) =>
+    public static ApiResponse<T> SuccessResult(T data, string? message = null) =>
         new() { Success = true, Data = data, Message = message };
 
-    public static ApiResponse<T> Fail(string message, List<string>? errors = null) =>
+    public static ApiResponse<T> ErrorResult(string message, List<string>? errors = null) =>
         new() { Success = false, Message = message, Errors = errors };
+
+    // Keep backward-compat aliases
+    public static ApiResponse<T> Ok(T data, string? message = null) => SuccessResult(data, message);
+    public static ApiResponse<T> Fail(string message, List<string>? errors = null) => ErrorResult(message, errors);
 }
 
 public class ApiResponse
@@ -22,9 +26,12 @@ public class ApiResponse
     public List<string>? Errors { get; set; }
     public string? TraceId { get; set; }
 
-    public static ApiResponse Ok(string? message = null) =>
+    public static ApiResponse SuccessResult(string? message = null) =>
         new() { Success = true, Message = message };
 
-    public static ApiResponse Fail(string message, List<string>? errors = null) =>
+    public static ApiResponse ErrorResult(string message, List<string>? errors = null) =>
         new() { Success = false, Message = message, Errors = errors };
+
+    public static ApiResponse Ok(string? message = null) => SuccessResult(message);
+    public static ApiResponse Fail(string message, List<string>? errors = null) => ErrorResult(message, errors);
 }
