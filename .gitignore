@@ -1,0 +1,45 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+*.nupkg
+TestResults/
+coverage/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+.next/
+.nuxt/
+dist/
+build/
+
+# Secrets
+*.pfx
+*.p12
+*.key
+*.pem
+*.cert
+appsettings.Development.json
+appsettings.Production.json
+
+# Docker
+.dockerignore
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/settings.json
+
+# Uploads
+uploads/
+storage/
