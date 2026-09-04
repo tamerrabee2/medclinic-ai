@@ -18,10 +18,17 @@ public class TenantContext : ITenantContext
         get
         {
             var clinicIdClaim = _httpContextAccessor.HttpContext?.User
-                .FindFirstValue("clinicId");
-            return clinicIdClaim != null && Guid.TryParse(clinicIdClaim, out var id)
-                ? id
-                : null;
+                .FindFirstValue("clinic_id");
+
+            if (Guid.TryParse(clinicIdClaim, out var clinicId))
+                return clinicId;
+
+            // Also check request header for API clients
+            var headerValue = _httpContextAccessor.HttpContext?.Request.Headers["X-Clinic-Id"].ToString();
+            if (!string.IsNullOrWhiteSpace(headerValue) && Guid.TryParse(headerValue, out var headerClinicId))
+                return headerClinicId;
+
+            return null;
         }
     }
 
@@ -31,18 +38,19 @@ public class TenantContext : ITenantContext
         {
             var userIdClaim = _httpContextAccessor.HttpContext?.User
                 .FindFirstValue(ClaimTypes.NameIdentifier);
-            return userIdClaim != null && Guid.TryParse(userIdClaim, out var id)
-                ? id
-                : null;
+
+            if (Guid.TryParse(userIdClaim, out var userId))
+                return userId;
+
+            return null;
         }
     }
 
     public bool IsAuthenticated =>
         _httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true;
 
-    public IList<string> Roles =>
+    public IEnumerable<string> Roles =>
         _httpContextAccessor.HttpContext?.User
             .FindAll(ClaimTypes.Role)
-            .Select(c => c.Value)
-            .ToList() ?? [];
+            .Select(c => c.Value) ?? [];
 }

@@ -1,105 +1,72 @@
 using MedClinic.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace MedClinic.Infrastructure.Storage;
 
 public class LocalFileStorage : IFileStorage
 {
     private readonly string _basePath;
-    private readonly string _baseUrl;
-
-    private static readonly HashSet<string> _allowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    private readonly ILogger<LocalFileStorage> _logger;
+    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".jpg", ".jpeg", ".png", ".gif", ".webp",
         ".pdf", ".dcm"
     };
 
-    private static readonly HashSet<string> _allowedMimeTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "image/jpeg", "image/png", "image/gif", "image/webp",
-        "application/pdf", "application/dicom"
-    };
-
-    private const long MaxFileSizeBytes = 50 * 1024 * 1024; // 50 MB
-
-    public LocalFileStorage(IConfiguration configuration)
+    public LocalFileStorage(IConfiguration configuration, ILogger<LocalFileStorage> logger)
     {
         _basePath = configuration["Storage:LocalPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "uploads");
-        _baseUrl = configuration["Storage:BaseUrl"] ?? "/files";
+        _logger = logger;
         Directory.CreateDirectory(_basePath);
     }
 
-    public async Task<string> UploadAsync(
-        Stream fileStream,
-        string fileName,
-        string contentType,
-        string folder,
-        CancellationToken cancellationToken = default)
+    public async Task<string> UploadAsync(IFormFile file, string folder, CancellationToken cancellationToken = default)
     {
-        ValidateFile(fileName, contentType, fileStream.Length);
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (!AllowedExtensions.Contains(extension))
+            throw new InvalidOperationException($"File extension '{extension}' is not allowed.");
 
-        var safeFolder = SanitizePath(folder);
-        var uploadDir = Path.Combine(_basePath, safeFolder);
-        Directory.CreateDirectory(uploadDir);
+        var fileName = $"{Guid.NewGuid()}{extension}";
+        var folderPath = Path.Combine(_basePath, folder);
+        Directory.CreateDirectory(folderPath);
 
-        var uniqueFileName = $"{Guid.NewGuid()}{Path.GetExtension(fileName).ToLowerInvariant()}";
-        var filePath = Path.Combine(uploadDir, uniqueFileName);
+        var filePath = Path.Combine(folderPath, fileName);
 
-        await using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
-        await fileStream.CopyToAsync(fs, cancellationToken);
+        await using var stream = new FileStream(filePath, FileMode.Create);
+        await file.CopyToAsync(stream, cancellationToken);
 
-        return $"{_baseUrl}/{safeFolder}/{uniqueFileName}";
+        _logger.LogInformation("File uploaded: {Folder}/{FileName}", folder, fileName);
+        return $"{folder}/{fileName}";
     }
 
-    public async Task<Stream> DownloadAsync(string filePath, CancellationToken cancellationToken = default)
+    public async Task<Stream> DownloadAsync(string path, CancellationToken cancellationToken = default)
     {
-        var fullPath = ResolvePhysicalPath(filePath);
+        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
         if (!File.Exists(fullPath))
-            throw new FileNotFoundException("File not found.", filePath);
+            throw new FileNotFoundException($"File not found: {path}");
 
-        var memoryStream = new MemoryStream();
-        await using var fs = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
-        await fs.CopyToAsync(memoryStream, cancellationToken);
-        memoryStream.Seek(0, SeekOrigin.Begin);
-        return memoryStream;
+        // Prevent path traversal
+        var resolvedPath = Path.GetFullPath(fullPath);
+        if (!resolvedPath.StartsWith(Path.GetFullPath(_basePath)))
+            throw new UnauthorizedAccessException("Invalid file path.");
+
+        return await Task.FromResult<Stream>(new FileStream(resolvedPath, FileMode.Open, FileAccess.Read));
     }
 
-    public Task DeleteAsync(string filePath, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
     {
-        var fullPath = ResolvePhysicalPath(filePath);
+        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
         if (File.Exists(fullPath))
             File.Delete(fullPath);
+
         return Task.CompletedTask;
     }
 
-    public Task<bool> ExistsAsync(string filePath, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
     {
-        var fullPath = ResolvePhysicalPath(filePath);
+        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
         return Task.FromResult(File.Exists(fullPath));
-    }
-
-    private void ValidateFile(string fileName, string contentType, long fileSize)
-    {
-        if (fileSize > MaxFileSizeBytes)
-            throw new InvalidOperationException($"File size exceeds maximum allowed size of {MaxFileSizeBytes / (1024 * 1024)} MB.");
-
-        var extension = Path.GetExtension(fileName);
-        if (!_allowedExtensions.Contains(extension))
-            throw new InvalidOperationException($"File extension '{extension}' is not allowed.");
-
-        if (!_allowedMimeTypes.Contains(contentType))
-            throw new InvalidOperationException($"Content type '{contentType}' is not allowed.");
-    }
-
-    private string ResolvePhysicalPath(string fileUrl)
-    {
-        var relativePath = fileUrl.Replace(_baseUrl, "").TrimStart('/');
-        return Path.Combine(_basePath, SanitizePath(relativePath));
-    }
-
-    private static string SanitizePath(string path)
-    {
-        return path.Replace("..", "").Trim('/', '\\').Replace('\\', '/');
     }
 }
