@@ -1,4 +1,3 @@
-using MedClinic.Application.Interfaces;
 using MedClinic.Shared.Common;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,14 +14,17 @@ public abstract class BaseController : ControllerBase
     protected IActionResult Created<T>(T data, string? message = null)
         => StatusCode(201, ApiResponse<T>.SuccessResult(data, message));
 
-    protected IActionResult NotFound(string message)
+    protected new IActionResult NotFound(string message)
         => base.NotFound(ApiResponse<object>.ErrorResult(message));
 
-    protected IActionResult BadRequest(string message)
+    protected new IActionResult BadRequest(string message)
         => base.BadRequest(ApiResponse<object>.ErrorResult(message));
 
-    protected IActionResult Unauthorized(string message = "Unauthorized")
+    protected new IActionResult Unauthorized(string message = "Unauthorized")
         => base.Unauthorized(ApiResponse<object>.ErrorResult(message));
+
+    protected IActionResult Forbidden(string message = "Access denied.")
+        => StatusCode(403, ApiResponse<object>.ErrorResult(message));
 
     protected Guid CurrentUserId
     {

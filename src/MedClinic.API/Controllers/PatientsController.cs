@@ -2,6 +2,8 @@ using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Common;
+using MedClinic.Shared.Constants;
+using MedClinic.API.Authorization;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -23,10 +25,12 @@ public class PatientsController : BaseController
     private Guid ClinicId => _tenant.ClinicId
         ?? throw new UnauthorizedAccessException("Clinic context required.");
 
-    /// <summary>List patients with pagination, search, filtering</summary>
+    /// <summary>List patients with pagination and search</summary>
     [HttpGet]
+    [HasPermission(Permissions.PatientsRead)]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search,
+        [FromQuery] string? gender,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
@@ -44,16 +48,19 @@ public class PatientsController : BaseController
                 (p.Phone != null && p.Phone.Contains(search)) ||
                 (p.NationalId != null && p.NationalId.Contains(search)));
 
-        var total = await query.CountAsync(ct);
+        if (!string.IsNullOrWhiteSpace(gender))
+            query = query.Where(p => p.Gender == gender);
 
+        var total = await query.CountAsync(ct);
         var patients = await query
             .OrderByDescending(p => p.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Select(p => new
             {
-                p.Id, p.FirstName, p.LastName, p.DateOfBirth,
-                p.Gender, p.Phone, p.Email, p.NationalId, p.CreatedAt
+                p.Id, p.FirstName, p.LastName,
+                p.DateOfBirth, p.Gender, p.Phone,
+                p.Email, p.NationalId, p.BloodType, p.CreatedAt
             })
             .ToListAsync(ct);
 
@@ -68,6 +75,7 @@ public class PatientsController : BaseController
 
     /// <summary>Get patient by ID</summary>
     [HttpGet("{id:guid}")]
+    [HasPermission(Permissions.PatientsRead)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var clinicId = ClinicId;
@@ -87,6 +95,7 @@ public class PatientsController : BaseController
 
     /// <summary>Create new patient</summary>
     [HttpPost]
+    [HasPermission(Permissions.PatientsCreate)]
     public async Task<IActionResult> Create([FromBody] CreatePatientRequest request, CancellationToken ct)
     {
         var clinicId = ClinicId;
@@ -110,12 +119,12 @@ public class PatientsController : BaseController
 
         _context.Patients.Add(patient);
         await _context.SaveChangesAsync(ct);
-
         return Created(new { patient.Id, patient.FirstName, patient.LastName }, "Patient created.");
     }
 
     /// <summary>Update patient</summary>
     [HttpPut("{id:guid}")]
+    [HasPermission(Permissions.PatientsUpdate)]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePatientRequest request, CancellationToken ct)
     {
         var clinicId = ClinicId;
@@ -124,14 +133,14 @@ public class PatientsController : BaseController
 
         if (patient == null) return NotFound("Patient not found.");
 
-        patient.FirstName = request.FirstName ?? patient.FirstName;
-        patient.LastName = request.LastName ?? patient.LastName;
-        patient.Phone = request.Phone ?? patient.Phone;
-        patient.Email = request.Email ?? patient.Email;
-        patient.Address = request.Address ?? patient.Address;
-        patient.Allergies = request.Allergies ?? patient.Allergies;
-        patient.ChronicConditions = request.ChronicConditions ?? patient.ChronicConditions;
-        patient.Notes = request.Notes ?? patient.Notes;
+        if (request.FirstName != null) patient.FirstName = request.FirstName;
+        if (request.LastName != null) patient.LastName = request.LastName;
+        if (request.Phone != null) patient.Phone = request.Phone;
+        if (request.Email != null) patient.Email = request.Email;
+        if (request.Address != null) patient.Address = request.Address;
+        if (request.Allergies != null) patient.Allergies = request.Allergies;
+        if (request.ChronicConditions != null) patient.ChronicConditions = request.ChronicConditions;
+        if (request.Notes != null) patient.Notes = request.Notes;
         patient.UpdatedBy = CurrentUserId;
 
         await _context.SaveChangesAsync(ct);
@@ -140,6 +149,7 @@ public class PatientsController : BaseController
 
     /// <summary>Soft delete patient</summary>
     [HttpDelete("{id:guid}")]
+    [HasPermission(Permissions.PatientsDelete)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
         var clinicId = ClinicId;
@@ -151,32 +161,19 @@ public class PatientsController : BaseController
         patient.IsDeleted = true;
         patient.DeletedAt = DateTime.UtcNow;
         patient.DeletedBy = CurrentUserId;
-
         await _context.SaveChangesAsync(ct);
         return Success<object>(null!, "Patient deleted.");
     }
 }
 
 public record CreatePatientRequest(
-    string FirstName,
-    string LastName,
-    DateTime? DateOfBirth,
-    string? Gender,
-    string? Phone,
-    string? Email,
-    string? Address,
-    string? NationalId,
-    string? BloodType,
-    string? Allergies,
-    string? ChronicConditions,
-    string? Notes);
+    string FirstName, string LastName,
+    DateTime? DateOfBirth, string? Gender,
+    string? Phone, string? Email, string? Address,
+    string? NationalId, string? BloodType,
+    string? Allergies, string? ChronicConditions, string? Notes);
 
 public record UpdatePatientRequest(
-    string? FirstName,
-    string? LastName,
-    string? Phone,
-    string? Email,
-    string? Address,
-    string? Allergies,
-    string? ChronicConditions,
-    string? Notes);
+    string? FirstName, string? LastName,
+    string? Phone, string? Email, string? Address,
+    string? Allergies, string? ChronicConditions, string? Notes);

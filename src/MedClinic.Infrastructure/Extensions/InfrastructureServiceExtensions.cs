@@ -21,71 +21,91 @@ public static class InfrastructureServiceExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Database
+        // ── Database ─────────────────────────────────────────────────
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
                 configuration.GetConnectionString("DefaultConnection"),
-                npgsql => npgsql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)
+                npgsql => npgsql
+                    .MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)
+                    .EnableRetryOnFailure(3)
             ));
 
-        services.AddScoped<IApplicationDbContext>(provider =>
-            provider.GetRequiredService<ApplicationDbContext>());
+        services.AddScoped<IApplicationDbContext>(
+            p => p.GetRequiredService<ApplicationDbContext>());
 
-        // Identity
-        services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
-        {
-            options.Password.RequireDigit = true;
-            options.Password.RequireLowercase = true;
-            options.Password.RequireUppercase = true;
-            options.Password.RequireNonAlphanumeric = true;
-            options.Password.RequiredLength = 8;
-            options.User.RequireUniqueEmail = true;
-            options.SignIn.RequireConfirmedEmail = false; // set true in production
-        })
-        .AddEntityFrameworkStores<ApplicationDbContext>()
-        .AddDefaultTokenProviders();
+        // ── Identity ─────────────────────────────────────────────────
+        services
+            .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+            {
+                options.Password.RequireDigit           = true;
+                options.Password.RequireLowercase       = true;
+                options.Password.RequireUppercase       = true;
+                options.Password.RequireNonAlphanumeric = true;
+                options.Password.RequiredLength         = 8;
+                options.User.RequireUniqueEmail         = true;
+                options.Lockout.DefaultLockoutTimeSpan  = TimeSpan.FromMinutes(15);
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.SignIn.RequireConfirmedEmail     = false;
+            })
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddDefaultTokenProviders()
+            .AddClaimsPrincipalFactory<PermissionClaimsFactory>();   // ← injects permission claims
 
-        // JWT Authentication
+        // ── JWT Authentication ────────────────────────────────────────
         var jwtSecret = configuration["Jwt:Secret"]
             ?? throw new InvalidOperationException("JWT Secret not configured");
 
-        services.AddAuthentication(options =>
-        {
-            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        })
-        .AddJwtBearer(options =>
-        {
-            options.TokenValidationParameters = new TokenValidationParameters
+        services
+            .AddAuthentication(options =>
             {
-                ValidateIssuer = true,
-                ValidIssuer = configuration["Jwt:Issuer"] ?? "MedClinicAI",
-                ValidateAudience = true,
-                ValidAudience = configuration["Jwt:Audience"] ?? "MedClinicAI",
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromSeconds(30)
-            };
-        });
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer           = true,
+                    ValidIssuer              = configuration["Jwt:Issuer"] ?? "MedClinicAI",
+                    ValidateAudience         = true,
+                    ValidAudience            = configuration["Jwt:Audience"] ?? "MedClinicAI",
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+                    ValidateLifetime         = true,
+                    ClockSkew                = TimeSpan.FromSeconds(30)
+                };
 
-        // Services
-        services.AddScoped<IJwtService, JwtService>();
-        services.AddScoped<IAuditService, AuditService>();
-        services.AddScoped<ITenantContext, TenantContext>();
+                // Support JWT from SignalR query string (for future real-time features)
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = ctx =>
+                    {
+                        var accessToken = ctx.Request.Query["access_token"];
+                        var path = ctx.HttpContext.Request.Path;
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                            ctx.Token = accessToken;
+                        return Task.CompletedTask;
+                    }
+                };
+            });
+
+        // ── Application Services ──────────────────────────────────────
+        services.AddScoped<IJwtService,     JwtService>();
+        services.AddScoped<IAuditService,   AuditService>();
+        services.AddScoped<ITenantContext,  TenantContext>();
         services.AddHttpContextAccessor();
 
-        // Storage
+        // ── Storage ───────────────────────────────────────────────────
         var storageProvider = configuration["Storage:Provider"] ?? "Local";
-        if (storageProvider == "Local")
+        if (storageProvider.Equals("Local", StringComparison.OrdinalIgnoreCase))
             services.AddScoped<IFileStorage, LocalFileStorage>();
-        // else: add S3Storage, AzureBlobStorage etc.
+        // else: S3 / Azure Blob (Phase 6)
 
-        // AI Provider
+        // ── AI Provider ───────────────────────────────────────────────
         var aiProvider = configuration["AI:Provider"] ?? "Mock";
-        if (aiProvider == "Mock")
+        if (aiProvider.Equals("Mock", StringComparison.OrdinalIgnoreCase))
             services.AddScoped<IAIProvider, MockAIProvider>();
-        // else: add OpenAIProvider, GeminiProvider etc.
+        // else: OpenAI / Gemini (Phase 4)
 
         return services;
     }
