@@ -1,18 +1,16 @@
 using MedClinic.Domain.Common;
-using MedClinic.Domain.Enums;
 
 namespace MedClinic.Domain.Entities;
 
 public class Notification : BaseEntity
 {
-    public Guid UserId { get; set; }
-    public Guid? ClinicId { get; set; }
-    public NotificationType Type { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public string Message { get; set; } = string.Empty;
-    public string? Link { get; set; }
-    public bool IsRead { get; set; } = false;
-    public DateTime? ReadAt { get; set; }
-    public Guid? RelatedEntityId { get; set; }
-    public string? RelatedEntityType { get; set; }
+    public Guid    UserId      { get; set; }
+    public Guid    ClinicId    { get; set; }
+    public string  Title       { get; set; } = string.Empty;
+    public string  Body        { get; set; } = string.Empty;
+    public string  Type        { get; set; } = string.Empty; // see NotificationTypes
+    public bool    IsRead      { get; set; } = false;
+    public DateTime? ReadAt    { get; set; }
+    public string? EntityType  { get; set; }  // e.g. "Appointment", "Invoice"
+    public Guid?   EntityId    { get; set; }  // foreign key to entity
 }
