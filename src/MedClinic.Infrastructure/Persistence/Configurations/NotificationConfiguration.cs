@@ -8,14 +8,24 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
 {
     public void Configure(EntityTypeBuilder<Notification> builder)
     {
-        builder.ToTable("Notifications");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(n => n.Id);
 
-        builder.Property(x => x.Title).IsRequired().HasMaxLength(300);
-        builder.Property(x => x.Message).IsRequired().HasMaxLength(2000);
-        builder.Property(x => x.Link).HasMaxLength(500);
+        builder.Property(n => n.Title)
+            .IsRequired()
+            .HasMaxLength(200);
 
-        builder.HasIndex(x => new { x.UserId, x.IsRead });
-        builder.HasIndex(x => x.CreatedAt);
+        builder.Property(n => n.Message)
+            .IsRequired()
+            .HasMaxLength(2000);
+
+        builder.Property(n => n.Type)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        builder.Property(n => n.ReferenceId)
+            .HasMaxLength(100);
+
+        builder.HasIndex(n => new { n.UserId, n.IsRead });
+        builder.HasIndex(n => n.CreatedAt);
     }
 }

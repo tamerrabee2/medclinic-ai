@@ -8,35 +8,29 @@ public class AIAnalysisConfiguration : IEntityTypeConfiguration<AIAnalysis>
 {
     public void Configure(EntityTypeBuilder<AIAnalysis> builder)
     {
-        builder.ToTable("AIAnalyses");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(a => a.Id);
 
-        builder.Property(x => x.AnalysisType).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.Status).IsRequired().HasMaxLength(50);
-        builder.Property(x => x.Summary).HasMaxLength(4000);
-        builder.Property(x => x.ResultJson).HasColumnType("jsonb");
-        builder.Property(x => x.ErrorMessage).HasMaxLength(2000);
-        builder.Property(x => x.AIProvider).HasMaxLength(100);
-        builder.Property(x => x.ModelVersion).HasMaxLength(100);
-        builder.Property(x => x.Disclaimer).HasMaxLength(1000);
+        builder.Property(a => a.AnalysisType)
+            .IsRequired()
+            .HasMaxLength(100);
 
-        builder.HasIndex(x => new { x.ClinicId, x.PatientId });
-        builder.HasIndex(x => x.Status);
-        builder.HasIndex(x => x.CreatedAt);
+        builder.Property(a => a.Status)
+            .IsRequired()
+            .HasMaxLength(50);
 
-        builder.HasOne(x => x.Patient)
-            .WithMany(x => x.AIAnalyses)
-            .HasForeignKey(x => x.PatientId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(a => a.Provider)
+            .HasMaxLength(100);
 
-        builder.HasOne(x => x.RequestedByDoctor)
-            .WithMany()
-            .HasForeignKey(x => x.RequestedByDoctorId)
-            .OnDelete(DeleteBehavior.Restrict);
+        builder.Property(a => a.Summary)
+            .HasMaxLength(4000);
 
-        builder.HasOne(x => x.ReviewedByDoctor)
-            .WithMany()
-            .HasForeignKey(x => x.ReviewedByDoctorId)
-            .OnDelete(DeleteBehavior.SetNull);
+        builder.Property(a => a.ResultJson)
+            .HasColumnType("jsonb");
+
+        builder.Property(a => a.ErrorMessage)
+            .HasMaxLength(2000);
+
+        builder.HasIndex(a => new { a.ClinicId, a.Status });
+        builder.HasIndex(a => a.ReferenceId);
     }
 }

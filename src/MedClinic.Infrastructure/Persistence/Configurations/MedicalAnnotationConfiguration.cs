@@ -8,28 +8,25 @@ public class MedicalAnnotationConfiguration : IEntityTypeConfiguration<MedicalAn
 {
     public void Configure(EntityTypeBuilder<MedicalAnnotation> builder)
     {
-        builder.ToTable("MedicalAnnotations");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(ma => ma.Id);
 
-        builder.Property(x => x.Type).IsRequired().HasMaxLength(50);
-        builder.Property(x => x.Color).HasMaxLength(20);
-        builder.Property(x => x.Text).HasMaxLength(1000);
-        // Coordinates stored as JSON
-        builder.Property(x => x.CoordinatesJson)
-            .HasColumnName("Coordinates")
+        builder.Property(ma => ma.AnnotationType)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.Property(ma => ma.Color)
+            .HasMaxLength(20);
+
+        builder.Property(ma => ma.Text)
+            .HasMaxLength(1000);
+
+        // Store coordinates as JSON
+        builder.Property(ma => ma.CoordinatesJson)
             .HasColumnType("jsonb");
 
-        builder.HasIndex(x => x.MedicalImageId);
-        builder.HasIndex(x => x.DoctorId);
-
-        builder.HasOne(x => x.MedicalImage)
-            .WithMany(x => x.Annotations)
-            .HasForeignKey(x => x.MedicalImageId)
+        builder.HasOne(ma => ma.MedicalImage)
+            .WithMany(mi => mi.Annotations)
+            .HasForeignKey(ma => ma.MedicalImageId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasOne(x => x.Doctor)
-            .WithMany()
-            .HasForeignKey(x => x.DoctorId)
-            .OnDelete(DeleteBehavior.Restrict);
     }
 }

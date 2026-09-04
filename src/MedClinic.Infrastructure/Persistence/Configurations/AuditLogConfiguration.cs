@@ -8,19 +8,27 @@ public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
 {
     public void Configure(EntityTypeBuilder<AuditLog> builder)
     {
-        builder.ToTable("AuditLogs");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(al => al.Id);
 
-        builder.Property(x => x.Action).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.EntityType).HasMaxLength(100);
-        builder.Property(x => x.IpAddress).HasMaxLength(50);
-        builder.Property(x => x.UserAgent).HasMaxLength(500);
-        builder.Property(x => x.ChangesJson).HasColumnType("jsonb");
+        builder.Property(al => al.Action)
+            .IsRequired()
+            .HasMaxLength(100);
 
-        builder.HasIndex(x => new { x.ClinicId, x.UserId });
-        builder.HasIndex(x => x.Action);
-        builder.HasIndex(x => x.CreatedAt);
-        // AuditLog should never be deleted
-        builder.Property(x => x.IsDeleted).HasDefaultValue(false);
+        builder.Property(al => al.EntityName)
+            .HasMaxLength(100);
+
+        builder.Property(al => al.IpAddress)
+            .HasMaxLength(50);
+
+        builder.Property(al => al.UserAgent)
+            .HasMaxLength(500);
+
+        // No sensitive medical data stored in logs
+        builder.Property(al => al.Description)
+            .HasMaxLength(1000);
+
+        builder.HasIndex(al => new { al.ClinicId, al.UserId });
+        builder.HasIndex(al => al.CreatedAt);
+        builder.HasIndex(al => al.EntityId);
     }
 }

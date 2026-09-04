@@ -8,36 +8,46 @@ public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
 {
     public void Configure(EntityTypeBuilder<Invoice> builder)
     {
-        builder.ToTable("Invoices");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(i => i.Id);
 
-        builder.Property(x => x.InvoiceNumber).IsRequired().HasMaxLength(50);
-        builder.Property(x => x.Notes).HasMaxLength(1000);
-        builder.Property(x => x.Currency).HasMaxLength(10).HasDefaultValue("USD");
+        builder.Property(i => i.InvoiceNumber)
+            .IsRequired()
+            .HasMaxLength(50);
 
-        builder.HasIndex(x => new { x.ClinicId, x.InvoiceNumber }).IsUnique();
-        builder.HasIndex(x => new { x.ClinicId, x.PatientId });
-        builder.HasIndex(x => x.Status);
-        builder.HasIndex(x => x.IssuedAt);
+        builder.HasIndex(i => new { i.ClinicId, i.InvoiceNumber }).IsUnique();
 
-        builder.Property(x => x.TotalAmount).HasPrecision(18, 2);
-        builder.Property(x => x.PaidAmount).HasPrecision(18, 2);
-        builder.Property(x => x.DiscountAmount).HasPrecision(18, 2);
-        builder.Property(x => x.TaxAmount).HasPrecision(18, 2);
+        builder.Property(i => i.Status)
+            .IsRequired()
+            .HasMaxLength(50);
 
-        builder.HasOne(x => x.Patient)
-            .WithMany(x => x.Invoices)
-            .HasForeignKey(x => x.PatientId)
+        builder.Property(i => i.Notes)
+            .HasMaxLength(2000);
+
+        builder.Property(i => i.TotalAmount)
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(i => i.DiscountAmount)
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(i => i.TaxAmount)
+            .HasColumnType("decimal(18,2)");
+
+        builder.Property(i => i.PaidAmount)
+            .HasColumnType("decimal(18,2)");
+
+        builder.HasOne(i => i.Patient)
+            .WithMany()
+            .HasForeignKey(i => i.PatientId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasMany(x => x.Items)
-            .WithOne(x => x.Invoice)
-            .HasForeignKey(x => x.InvoiceId)
+        builder.HasMany(i => i.Items)
+            .WithOne(item => item.Invoice)
+            .HasForeignKey(item => item.InvoiceId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(x => x.Payments)
-            .WithOne(x => x.Invoice)
-            .HasForeignKey(x => x.InvoiceId)
+        builder.HasMany(i => i.Payments)
+            .WithOne(p => p.Invoice)
+            .HasForeignKey(p => p.InvoiceId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

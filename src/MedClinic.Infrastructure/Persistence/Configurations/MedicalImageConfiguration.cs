@@ -8,27 +8,33 @@ public class MedicalImageConfiguration : IEntityTypeConfiguration<MedicalImage>
 {
     public void Configure(EntityTypeBuilder<MedicalImage> builder)
     {
-        builder.ToTable("MedicalImages");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(mi => mi.Id);
 
-        builder.Property(x => x.FileName).IsRequired().HasMaxLength(300);
-        builder.Property(x => x.OriginalUrl).IsRequired().HasMaxLength(500);
-        builder.Property(x => x.AnnotatedUrl).HasMaxLength(500);
-        builder.Property(x => x.ThumbnailUrl).HasMaxLength(500);
-        builder.Property(x => x.ContentType).HasMaxLength(100);
-        builder.Property(x => x.Modality).HasMaxLength(50);
-        builder.Property(x => x.Description).HasMaxLength(1000);
+        builder.Property(mi => mi.FileName)
+            .IsRequired()
+            .HasMaxLength(300);
 
-        builder.HasIndex(x => x.RadiologyStudyId);
+        builder.Property(mi => mi.StoragePath)
+            .IsRequired()
+            .HasMaxLength(1000);
 
-        builder.HasMany(x => x.Annotations)
-            .WithOne(x => x.MedicalImage)
-            .HasForeignKey(x => x.MedicalImageId)
+        builder.Property(mi => mi.ContentType)
+            .HasMaxLength(100);
+
+        builder.Property(mi => mi.ImageType)
+            .HasMaxLength(50);
+
+        builder.Property(mi => mi.Description)
+            .HasMaxLength(1000);
+
+        builder.HasOne(mi => mi.RadiologyStudy)
+            .WithMany(rs => rs.Images)
+            .HasForeignKey(mi => mi.RadiologyStudyId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(x => x.AIAnalyses)
-            .WithOne(x => x.MedicalImage)
-            .HasForeignKey(x => x.MedicalImageId)
-            .OnDelete(DeleteBehavior.SetNull);
+        builder.HasMany(mi => mi.Annotations)
+            .WithOne(a => a.MedicalImage)
+            .HasForeignKey(a => a.MedicalImageId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
