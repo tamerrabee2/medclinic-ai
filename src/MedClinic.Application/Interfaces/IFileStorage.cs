@@ -9,16 +9,7 @@ public interface IFileStorage
         string folder,
         CancellationToken cancellationToken = default);
 
-    Task<Stream> DownloadAsync(
-        string filePath,
-        CancellationToken cancellationToken = default);
-
-    Task DeleteAsync(
-        string filePath,
-        CancellationToken cancellationToken = default);
-
-    Task<string> GetSignedUrlAsync(
-        string filePath,
-        TimeSpan expiry,
-        CancellationToken cancellationToken = default);
+    Task<Stream> DownloadAsync(string filePath, CancellationToken cancellationToken = default);
+    Task DeleteAsync(string filePath, CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(string filePath, CancellationToken cancellationToken = default);
 }

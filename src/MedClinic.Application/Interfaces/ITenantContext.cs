@@ -4,7 +4,6 @@ public interface ITenantContext
 {
     Guid? ClinicId { get; }
     Guid? UserId { get; }
-    string? UserEmail { get; }
-    string? UserRole { get; }
-    bool HasPermission(string permission);
+    bool IsAuthenticated { get; }
+    IList<string> Roles { get; }
 }
