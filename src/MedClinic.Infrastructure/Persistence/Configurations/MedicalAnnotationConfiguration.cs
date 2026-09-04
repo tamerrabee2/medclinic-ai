@@ -6,27 +6,22 @@ namespace MedClinic.Infrastructure.Persistence.Configurations;
 
 public class MedicalAnnotationConfiguration : IEntityTypeConfiguration<MedicalAnnotation>
 {
-    public void Configure(EntityTypeBuilder<MedicalAnnotation> builder)
+    public void Configure(EntityTypeBuilder<MedicalAnnotation> b)
     {
-        builder.HasKey(ma => ma.Id);
+        b.HasKey(a => a.Id);
+        b.Property(a => a.Type).IsRequired().HasMaxLength(50);
+        b.Property(a => a.Color).HasMaxLength(20).HasDefaultValue("#FF0000");
+        b.Property(a => a.CoordinatesJson).IsRequired().HasColumnType("text");
+        b.Property(a => a.Text).HasMaxLength(500);
+        b.Property(a => a.MeasurementValue).HasColumnType("double precision");
+        b.Property(a => a.AIConfidence).HasColumnType("double precision");
 
-        builder.Property(ma => ma.AnnotationType)
-            .IsRequired()
-            .HasMaxLength(50);
+        b.HasIndex(a => a.MedicalImageId);
+        b.HasIndex(a => new { a.MedicalImageId, a.DoctorId });
 
-        builder.Property(ma => ma.Color)
-            .HasMaxLength(20);
-
-        builder.Property(ma => ma.Text)
-            .HasMaxLength(1000);
-
-        // Store coordinates as JSON
-        builder.Property(ma => ma.CoordinatesJson)
-            .HasColumnType("jsonb");
-
-        builder.HasOne(ma => ma.MedicalImage)
-            .WithMany(mi => mi.Annotations)
-            .HasForeignKey(ma => ma.MedicalImageId)
-            .OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(a => a.Doctor)
+            .WithMany()
+            .HasForeignKey(a => a.DoctorId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

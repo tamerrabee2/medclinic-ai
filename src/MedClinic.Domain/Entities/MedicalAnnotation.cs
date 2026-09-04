@@ -1,18 +1,20 @@
-using MedClinic.Domain.Common;
-
 namespace MedClinic.Domain.Entities;
 
 public class MedicalAnnotation : BaseEntity
 {
-    public Guid MedicalImageId { get; set; }
-    public Guid DoctorId { get; set; }
-    public string Type { get; set; } = string.Empty; // Pen, Arrow, Rectangle, Circle, Text, Measurement
-    public string? CoordinatesJson { get; set; } // JSON array of coordinates
-    public string? Color { get; set; }
-    public double? Thickness { get; set; }
-    public string? Text { get; set; }
-    public int ZIndex { get; set; } = 0;
+    public Guid        MedicalImageId { get; set; }
+    public Guid        DoctorId       { get; set; }
+    public string      Type           { get; set; } = string.Empty; // Pen, Arrow, Rectangle, Circle, Text, Measurement
+    public string      CoordinatesJson { get; set; } = "[]";         // JSON array of points
+    public string?     Color          { get; set; } = "#FF0000";
+    public int         Thickness      { get; set; } = 2;
+    public string?     Text           { get; set; }
+    public double?     MeasurementValue { get; set; }
+    public string?     MeasurementUnit  { get; set; }               // mm, cm, px
+    public bool        IsAIGenerated  { get; set; } = false;
+    public double?     AIConfidence   { get; set; }
 
-    public MedicalImage MedicalImage { get; set; } = null!;
-    public Doctor Doctor { get; set; } = null!;
+    // Navigation
+    public RadiologyImage? Image  { get; set; }
+    public User?           Doctor { get; set; }
 }
