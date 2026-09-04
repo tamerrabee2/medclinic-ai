@@ -1,183 +1,149 @@
-using MedClinic.Infrastructure;
+using MedClinic.Infrastructure.Extensions;
 using MedClinic.Infrastructure.Persistence;
+using MedClinic.API.Middleware;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
+using Serilog.Events;
 using Microsoft.OpenApi.Models;
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 
-var builder = WebApplication.CreateBuilder(args);
-
-// ── Serilog ──────────────────────────────────────────────────────────────────
 Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
+    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
     .Enrich.FromLogContext()
-    .Enrich.WithProperty("Application", "MedClinic.API")
     .WriteTo.Console()
-    .WriteTo.File("logs/medclinic-.log", rollingInterval: RollingInterval.Day)
-    .CreateLogger();
+    .CreateBootstrapLogger();
 
-builder.Host.UseSerilog();
+try
+{
+    Log.Information("Starting MedClinic AI API...");
 
-// ── Services ─────────────────────────────────────────────────────────────────
-builder.Services.AddControllers()
-    .AddJsonOptions(options =>
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Serilog
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .WriteTo.File("logs/medclinic-.log", rollingInterval: RollingInterval.Day));
+
+    // Infrastructure (DB, Auth, Identity, AI, Storage, etc.)
+    builder.Services.AddInfrastructure(builder.Configuration);
+
+    // Controllers
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+
+    // Swagger / OpenAPI
+    builder.Services.AddSwaggerGen(c =>
     {
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-        options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-        options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-    });
-
-builder.Services.AddEndpointsApiExplorer();
-
-// ── Swagger ───────────────────────────────────────────────────────────────────
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "MedClinic AI API",
-        Version = "v1",
-        Description = "AI-powered Medical Clinic Management Platform API",
-        Contact = new OpenApiContact { Name = "MedClinic AI", Email = "support@medclinic.ai" }
-    });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "Enter your JWT token."
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        [
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            }
-        ] = []
-    });
-
-    c.EnableAnnotations();
-});
-
-// ── Infrastructure (DB, Identity, JWT, AI, Storage…) ─────────────────────────
-builder.Services.AddInfrastructure(builder.Configuration);
-
-// ── CORS ──────────────────────────────────────────────────────────────────────
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("MedClinicPolicy", policy =>
-    {
-        var allowedOrigins = builder.Configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>() ?? ["http://localhost:3000"];
-
-        policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
-});
-
-// ── Health Checks ─────────────────────────────────────────────────────────────
-builder.Services.AddHealthChecks()
-    .AddNpgSql(
-        builder.Configuration.GetConnectionString("DefaultConnection") ?? "",
-        name: "postgresql",
-        failureStatus: HealthStatus.Unhealthy,
-        tags: ["db", "sql", "postgresql"])
-    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"]);
-
-// ── Rate Limiting ─────────────────────────────────────────────────────────────
-builder.Services.AddRateLimiter(options =>
-{
-    options.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter
-        .Create<Microsoft.AspNetCore.Http.HttpContext, string>(ctx =>
-            System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
-                partitionKey: ctx.User.Identity?.Name ?? ctx.Request.Headers.Host.ToString(),
-                factory: _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions
-                {
-                    AutoReplenishment = true,
-                    PermitLimit = 200,
-                    Window = TimeSpan.FromMinutes(1)
-                }));
-    options.OnRejected = async (context, token) =>
-    {
-        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-        await context.HttpContext.Response.WriteAsJsonAsync(
-            new { success = false, message = "Too many requests. Please try again later." }, token);
-    };
-});
-
-var app = builder.Build();
-
-// ── Auto-migrate on startup (dev only) ───────────────────────────────────────
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
-}
-
-// ── Middleware pipeline ───────────────────────────────────────────────────────
-app.UseMiddleware<MedClinic.API.Middleware.ExceptionHandlingMiddleware>();
-app.UseMiddleware<MedClinic.API.Middleware.CorrelationIdMiddleware>();
-
-if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MedClinic AI API v1");
-        c.RoutePrefix = "swagger";
-        c.DocumentTitle = "MedClinic AI API";
-    });
-}
-
-app.UseHttpsRedirection();
-app.UseCors("MedClinicPolicy");
-app.UseRateLimiter();
-app.UseSerilogRequestLogging();
-app.UseAuthentication();
-app.UseAuthorization();
-app.MapControllers();
-
-// ── Health Check endpoints ────────────────────────────────────────────────────
-app.MapHealthChecks("/health", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    ResponseWriter = WriteHealthCheckResponse,
-    Predicate = _ => true
-});
-app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("live")
-});
-app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-{
-    Predicate = check => check.Tags.Contains("db")
-});
-
-app.Run();
-
-static async Task WriteHealthCheckResponse(
-    Microsoft.AspNetCore.Http.HttpContext context,
-    HealthReport report)
-{
-    context.Response.ContentType = "application/json";
-    var result = new
-    {
-        status = report.Status.ToString(),
-        totalDuration = report.TotalDuration.TotalMilliseconds,
-        checks = report.Entries.Select(e => new
+        c.SwaggerDoc("v1", new OpenApiInfo
         {
-            name = e.Key,
-            status = e.Value.Status.ToString(),
-            duration = e.Value.Duration.TotalMilliseconds,
-            description = e.Value.Description
-        })
-    };
-    await context.Response.WriteAsJsonAsync(result);
+            Title = "MedClinic AI API",
+            Version = "v1",
+            Description = "AI-powered Medical Clinic Management Platform"
+        });
+
+        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Description = "JWT Authorization header. Enter: Bearer {token}",
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.ApiKey,
+            Scheme = "Bearer"
+        });
+
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                },
+                Array.Empty<string>()
+            }
+        });
+    });
+
+    // CORS
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AllowFrontend", policy =>
+        {
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins")
+                .Get<string[]>() ?? ["http://localhost:3000"];
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        });
+    });
+
+    // Health Checks
+    builder.Services.AddHealthChecks()
+        .AddNpgSql(
+            builder.Configuration.GetConnectionString("DefaultConnection")!,
+            name: "postgresql",
+            tags: ["db", "ready"])
+        .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"]);
+
+    // API Versioning
+    builder.Services.AddApiVersioning(options =>
+    {
+        options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+        options.AssumeDefaultVersionWhenUnspecified = true;
+        options.ReportApiVersions = true;
+    });
+
+    var app = builder.Build();
+
+    // Auto-run migrations in development
+    if (app.Environment.IsDevelopment())
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.MigrateAsync();
+    }
+
+    app.UseMiddleware<GlobalExceptionMiddleware>();
+    app.UseMiddleware<CorrelationIdMiddleware>();
+
+    app.UseSerilogRequestLogging();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "MedClinic AI API v1");
+            c.RoutePrefix = "swagger";
+        });
+    }
+
+    app.UseHttpsRedirection();
+    app.UseCors("AllowFrontend");
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    // Health check endpoints
+    app.MapHealthChecks("/health");
+    app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("ready")
+    });
+    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = check => check.Tags.Contains("live")
+    });
+
+    await app.RunAsync();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
 }

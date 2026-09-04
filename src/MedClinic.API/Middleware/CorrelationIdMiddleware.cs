@@ -2,7 +2,7 @@ namespace MedClinic.API.Middleware;
 
 public class CorrelationIdMiddleware
 {
-    private const string CorrelationIdHeader = "X-Correlation-ID";
+    private const string CorrelationIdHeader = "X-Correlation-Id";
     private readonly RequestDelegate _next;
 
     public CorrelationIdMiddleware(RequestDelegate next)
@@ -15,8 +15,12 @@ public class CorrelationIdMiddleware
         var correlationId = context.Request.Headers[CorrelationIdHeader].FirstOrDefault()
             ?? Guid.NewGuid().ToString();
 
-        context.Items["CorrelationId"] = correlationId;
-        context.Response.Headers.TryAdd(CorrelationIdHeader, correlationId);
+        context.Items[CorrelationIdHeader] = correlationId;
+        context.Response.OnStarting(() =>
+        {
+            context.Response.Headers[CorrelationIdHeader] = correlationId;
+            return Task.CompletedTask;
+        });
 
         using (Serilog.Context.LogContext.PushProperty("CorrelationId", correlationId))
         {
