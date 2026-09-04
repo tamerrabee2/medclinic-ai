@@ -11,7 +11,6 @@ namespace MedClinic.Infrastructure.Identity;
 
 public class JwtService : IJwtService
 {
-    private readonly IConfiguration _configuration;
     private readonly string _secret;
     private readonly string _issuer;
     private readonly string _audience;
@@ -20,7 +19,6 @@ public class JwtService : IJwtService
 
     public JwtService(IConfiguration configuration)
     {
-        _configuration = configuration;
         _secret = configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not configured");
         _issuer = configuration["Jwt:Issuer"] ?? "MedClinicAI";
         _audience = configuration["Jwt:Audience"] ?? "MedClinicAI";
@@ -43,6 +41,11 @@ public class JwtService : IJwtService
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
 
+        // Embed permissions directly into the token
+        var permissions = PermissionClaimsFactory.GetPermissionsForRoles(roles);
+        foreach (var perm in permissions)
+            claims.Add(new Claim("permission", perm));
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -57,9 +60,8 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public RefreshToken GenerateRefreshToken(Guid userId)
-    {
-        return new RefreshToken
+    public RefreshToken GenerateRefreshToken(Guid userId) =>
+        new()
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -67,7 +69,6 @@ public class JwtService : IJwtService
             ExpiresAt = DateTime.UtcNow.AddDays(_refreshExpiryDays),
             CreatedAt = DateTime.UtcNow
         };
-    }
 
     public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
     {
@@ -79,14 +80,15 @@ public class JwtService : IJwtService
             ValidIssuer = _issuer,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret)),
-            ValidateLifetime = false // allow expired tokens for refresh
+            ValidateLifetime = false
         };
 
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
+        var principal = new JwtSecurityTokenHandler()
+            .ValidateToken(token, tokenValidationParameters, out var securityToken);
 
         if (securityToken is not JwtSecurityToken jwtToken ||
-            !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+            !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256,
+                StringComparison.InvariantCultureIgnoreCase))
             return null;
 
         return principal;
