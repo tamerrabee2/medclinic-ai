@@ -1,72 +1,54 @@
 using MedClinic.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace MedClinic.Infrastructure.Storage;
 
+/// <summary>
+/// Local disk storage for development.
+/// Replace with S3 / Azure Blob in production (Phase 6).
+/// </summary>
 public class LocalFileStorage : IFileStorage
 {
     private readonly string _basePath;
-    private readonly ILogger<LocalFileStorage> _logger;
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".jpg", ".jpeg", ".png", ".gif", ".webp",
-        ".pdf", ".dcm"
-    };
+    private readonly string _baseUrl;
 
-    public LocalFileStorage(IConfiguration configuration, ILogger<LocalFileStorage> logger)
+    public LocalFileStorage(IConfiguration configuration)
     {
         _basePath = configuration["Storage:LocalPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "uploads");
-        _logger = logger;
+        _baseUrl  = configuration["Storage:BaseUrl"]   ?? "http://localhost:5000/uploads";
         Directory.CreateDirectory(_basePath);
     }
 
-    public async Task<string> UploadAsync(IFormFile file, string folder, CancellationToken cancellationToken = default)
+    public async Task<string> SaveAsync(IFormFile file, string folder, CancellationToken ct = default)
     {
-        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (!AllowedExtensions.Contains(extension))
-            throw new InvalidOperationException($"File extension '{extension}' is not allowed.");
+        var dir = Path.Combine(_basePath, folder);
+        Directory.CreateDirectory(dir);
 
-        var fileName = $"{Guid.NewGuid()}{extension}";
-        var folderPath = Path.Combine(_basePath, folder);
-        Directory.CreateDirectory(folderPath);
+        var uniqueName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var fullPath   = Path.Combine(dir, uniqueName);
 
-        var filePath = Path.Combine(folderPath, fileName);
+        await using var stream = new FileStream(fullPath, FileMode.Create);
+        await file.CopyToAsync(stream, ct);
 
-        await using var stream = new FileStream(filePath, FileMode.Create);
-        await file.CopyToAsync(stream, cancellationToken);
-
-        _logger.LogInformation("File uploaded: {Folder}/{FileName}", folder, fileName);
-        return $"{folder}/{fileName}";
+        return $"{_baseUrl}/{folder}/{uniqueName}";
     }
 
-    public async Task<Stream> DownloadAsync(string path, CancellationToken cancellationToken = default)
+    public Task DeleteAsync(string fileUrl, CancellationToken ct = default)
     {
-        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
-        if (!File.Exists(fullPath))
-            throw new FileNotFoundException($"File not found: {path}");
+        var relative = fileUrl.Replace(_baseUrl, string.Empty).TrimStart('/');
+        var fullPath = Path.Combine(_basePath, relative.Replace('/', Path.DirectorySeparatorChar));
 
-        // Prevent path traversal
-        var resolvedPath = Path.GetFullPath(fullPath);
-        if (!resolvedPath.StartsWith(Path.GetFullPath(_basePath)))
-            throw new UnauthorizedAccessException("Invalid file path.");
-
-        return await Task.FromResult<Stream>(new FileStream(resolvedPath, FileMode.Open, FileAccess.Read));
-    }
-
-    public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
-    {
-        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
         if (File.Exists(fullPath))
             File.Delete(fullPath);
 
         return Task.CompletedTask;
     }
 
-    public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
+    public Task<bool> ExistsAsync(string fileUrl, CancellationToken ct = default)
     {
-        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
+        var relative = fileUrl.Replace(_baseUrl, string.Empty).TrimStart('/');
+        var fullPath = Path.Combine(_basePath, relative.Replace('/', Path.DirectorySeparatorChar));
         return Task.FromResult(File.Exists(fullPath));
     }
 }
