@@ -2,8 +2,13 @@ using MedClinic.Application.Models.AI;
 
 namespace MedClinic.Application.Interfaces;
 
+/// <summary>
+/// Abstraction for AI providers. Swap OpenAI, Gemini, Anthropic, or Local AI
+/// without touching Business Logic.
+/// </summary>
 public interface IAIProvider
 {
+    /// <summary>Name/identifier of this provider (e.g., "Mock", "OpenAI", "Gemini")</summary>
     string ProviderName { get; }
 
     Task<MedicalImageAnalysisResult> AnalyzeMedicalImageAsync(
@@ -23,10 +28,6 @@ public interface IAIProvider
         CancellationToken cancellationToken = default);
 
     Task<AIChatResponse> ChatAsync(
-        AIChatRequest request,
-        CancellationToken cancellationToken = default);
-
-    IAsyncEnumerable<string> ChatStreamAsync(
         AIChatRequest request,
         CancellationToken cancellationToken = default);
 }

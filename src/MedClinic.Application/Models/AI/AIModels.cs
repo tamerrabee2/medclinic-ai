@@ -1,89 +1,113 @@
 namespace MedClinic.Application.Models.AI;
 
+// ── Medical Image Analysis ───────────────────────────────────────────────────────
 public record MedicalImageInput(
-    string ImageBase64,
-    string ImageType,
+    Stream ImageStream,
+    string FileName,
+    string ContentType,
+    string? Modality,
     string? BodyPart,
-    string? ClinicalIndication,
-    string? PatientAge,
-    string? PatientGender);
+    string? ClinicalContext);
 
 public record MedicalImageAnalysisResult(
     string Summary,
     List<string> Findings,
     List<string> Observations,
-    List<string> RegionsOfInterest,
+    List<RegionOfInterest> RegionsOfInterest,
     double? Confidence,
     List<string> RecommendationsForReview,
     bool RequiresDoctorReview = true,
     string Disclaimer = "AI-generated analysis. This content is intended for clinical decision support only and must be reviewed by a qualified healthcare professional.");
 
-public record LabAnalysisInput(
-    List<LabValueInput> Values,
-    List<LabValueInput>? PreviousValues,
-    string? PatientAge,
-    string? PatientGender);
+public record RegionOfInterest(
+    string Label,
+    string? Description,
+    BoundingBox? BoundingBox);
 
-public record LabValueInput(
+public record BoundingBox(double X, double Y, double Width, double Height);
+
+// ── Lab Analysis ────────────────────────────────────────────────────────────────────
+public record LabAnalysisInput(
+    List<LabTestInput> Tests,
+    List<LabTestInput>? PreviousTests,
+    string? PatientAge,
+    string? PatientGender,
+    string? ClinicalContext);
+
+public record LabTestInput(
     string TestName,
-    string Value,
+    string? Value,
     string? Unit,
-    string? ReferenceRange);
+    string? ReferenceRange,
+    string? PreviousValue);
 
 public record LabAnalysisResult(
     string Summary,
-    List<LabFinding> Findings,
+    List<LabTestAnalysis> Tests,
+    List<string> AbnormalFindings,
     List<string> TrendObservations,
     List<string> Recommendations,
-    bool RequiresDoctorReview = true);
+    bool RequiresDoctorReview = true,
+    string Disclaimer = "AI-generated analysis. This content is intended for clinical decision support only and must be reviewed by a qualified healthcare professional.");
 
-public record LabFinding(
+public record LabTestAnalysis(
     string TestName,
-    string Value,
+    string? Value,
     string? Unit,
     string? ReferenceRange,
     string Status,
-    string? Trend,
+    string? TrendDirection,
     string? Interpretation);
 
-public record PatientSummaryInput(
+// ── Patient Summary ──────────────────────────────────────────────────────────────────npublic record PatientSummaryInput(
     string PatientName,
-    int Age,
-    string Gender,
+    string? Age,
+    string? Gender,
     string? ChronicConditions,
     string? Allergies,
-    List<string>? RecentDiagnoses,
-    List<string>? CurrentMedications,
-    List<string>? RecentVisitsSummary);
+    List<string> RecentDiagnoses,
+    List<string> CurrentMedications,
+    List<string> RecentLabSummaries,
+    List<string> RecentVisitSummaries,
+    string? AdditionalContext);
 
 public record PatientSummaryResult(
     string Summary,
     List<string> KeyFindings,
     List<string> ActiveProblems,
-    List<string> Medications,
-    List<string> Alerts,
-    bool RequiresDoctorReview = true);
+    List<string> ImportantAlerts,
+    List<string> SuggestedFollowUp,
+    bool RequiresDoctorReview = true,
+    string Disclaimer = "AI-generated summary. Must be reviewed by a qualified healthcare professional.");
 
+// ── Medical Report ────────────────────────────────────────────────────────────────────
 public record MedicalReportInput(
     string ReportType,
-    string PatientContext,
-    string ClinicalData);
+    string PatientName,
+    string? Age,
+    string? ClinicalContext,
+    List<string> DataPoints,
+    string? AdditionalInstructions);
 
 public record MedicalReportResult(
-    string Report,
-    bool RequiresDoctorReview = true);
+    string Title,
+    string Content,
+    List<string> Sections,
+    bool RequiresDoctorReview = true,
+    string Disclaimer = "AI-generated report. Must be reviewed and approved by a qualified healthcare professional.");
 
+// ── AI Chat ─────────────────────────────────────────────────────────────────────────
 public record AIChatRequest(
-    string Message,
-    List<AIChatMessage> History,
+    List<ChatMessage> Messages,
+    string? SystemPrompt,
     string? PatientContext,
-    string? SystemPrompt);
+    bool Stream = false);
 
-public record AIChatMessage(
-    string Role,
-    string Content);
+public record ChatMessage(string Role, string Content);
 
 public record AIChatResponse(
     string Content,
-    int? TokensUsed,
-    string Provider);
+    string? Role = "assistant",
+    int? TokensUsed = null,
+    bool IsError = false,
+    string? ErrorMessage = null);
