@@ -8,26 +8,37 @@ public class AppointmentConfiguration : IEntityTypeConfiguration<Appointment>
 {
     public void Configure(EntityTypeBuilder<Appointment> builder)
     {
-        builder.ToTable("Appointments");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(a => a.Id);
 
-        builder.Property(x => x.Notes).HasMaxLength(2000);
-        builder.Property(x => x.CancellationReason).HasMaxLength(500);
-        builder.Property(x => x.Type).HasMaxLength(100);
+        builder.Property(a => a.Status)
+            .IsRequired()
+            .HasMaxLength(50);
 
-        builder.HasIndex(x => new { x.ClinicId, x.ScheduledAt });
-        builder.HasIndex(x => new { x.DoctorId, x.ScheduledAt });
-        builder.HasIndex(x => new { x.PatientId, x.ScheduledAt });
-        builder.HasIndex(x => x.Status);
+        builder.Property(a => a.Type)
+            .HasMaxLength(100);
 
-        builder.HasOne(x => x.Patient)
-            .WithMany(x => x.Appointments)
-            .HasForeignKey(x => x.PatientId)
+        builder.Property(a => a.Notes)
+            .HasMaxLength(2000);
+
+        builder.Property(a => a.CancellationReason)
+            .HasMaxLength(500);
+
+        builder.HasIndex(a => new { a.ClinicId, a.DoctorId, a.ScheduledAt });
+        builder.HasIndex(a => new { a.ClinicId, a.PatientId });
+
+        builder.HasOne(a => a.Doctor)
+            .WithMany(d => d.Appointments)
+            .HasForeignKey(a => a.DoctorId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Doctor)
-            .WithMany(x => x.Appointments)
-            .HasForeignKey(x => x.DoctorId)
+        builder.HasOne(a => a.Patient)
+            .WithMany(p => p.Appointments)
+            .HasForeignKey(a => a.PatientId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(a => a.Clinic)
+            .WithMany()
+            .HasForeignKey(a => a.ClinicId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

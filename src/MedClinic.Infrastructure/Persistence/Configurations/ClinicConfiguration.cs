@@ -8,45 +8,44 @@ public class ClinicConfiguration : IEntityTypeConfiguration<Clinic>
 {
     public void Configure(EntityTypeBuilder<Clinic> builder)
     {
-        builder.ToTable("Clinics");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(c => c.Id);
 
-        builder.Property(x => x.Name)
+        builder.Property(c => c.Name)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(x => x.Slug)
+        builder.Property(c => c.Slug)
             .IsRequired()
             .HasMaxLength(100);
 
-        builder.HasIndex(x => x.Slug).IsUnique();
+        builder.HasIndex(c => c.Slug).IsUnique();
 
-        builder.Property(x => x.Phone).HasMaxLength(50);
-        builder.Property(x => x.Email).HasMaxLength(200);
-        builder.Property(x => x.Address).HasMaxLength(500);
-        builder.Property(x => x.City).HasMaxLength(100);
-        builder.Property(x => x.Country).HasMaxLength(100);
-        builder.Property(x => x.LogoUrl).HasMaxLength(500);
-        builder.Property(x => x.Website).HasMaxLength(300);
-        builder.Property(x => x.Description).HasMaxLength(1000);
-        builder.Property(x => x.LicenseNumber).HasMaxLength(100);
-        builder.Property(x => x.TaxNumber).HasMaxLength(100);
-        builder.Property(x => x.TimeZone).HasMaxLength(100);
-        builder.Property(x => x.Currency).HasMaxLength(10);
+        builder.Property(c => c.Email)
+            .HasMaxLength(200);
 
-        builder.HasMany(x => x.Members)
-            .WithOne(x => x.Clinic)
-            .HasForeignKey(x => x.ClinicId)
+        builder.Property(c => c.Phone)
+            .HasMaxLength(50);
+
+        builder.Property(c => c.Address)
+            .HasMaxLength(500);
+
+        builder.Property(c => c.City)
+            .HasMaxLength(100);
+
+        builder.Property(c => c.Country)
+            .HasMaxLength(100);
+
+        builder.Property(c => c.LogoUrl)
+            .HasMaxLength(500);
+
+        builder.Property(c => c.IsActive)
+            .HasDefaultValue(true);
+
+        builder.HasMany(c => c.Members)
+            .WithOne(m => m.Clinic)
+            .HasForeignKey(m => m.ClinicId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(x => x.Doctors)
-            .WithOne(x => x.Clinic)
-            .HasForeignKey(x => x.ClinicId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(x => x.Patients)
-            .WithOne(x => x.Clinic)
-            .HasForeignKey(x => x.ClinicId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasQueryFilter(c => !c.IsDeleted);
     }
 }

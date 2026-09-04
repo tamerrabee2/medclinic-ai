@@ -8,49 +8,51 @@ public class VisitConfiguration : IEntityTypeConfiguration<Visit>
 {
     public void Configure(EntityTypeBuilder<Visit> builder)
     {
-        builder.ToTable("Visits");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(v => v.Id);
 
-        builder.Property(x => x.ChiefComplaint).HasMaxLength(1000);
-        builder.Property(x => x.Symptoms).HasMaxLength(2000);
-        builder.Property(x => x.PhysicalExamination).HasMaxLength(4000);
-        builder.Property(x => x.Diagnosis).HasMaxLength(2000);
-        builder.Property(x => x.DifferentialDiagnosis).HasMaxLength(2000);
-        builder.Property(x => x.TreatmentPlan).HasMaxLength(4000);
-        builder.Property(x => x.DoctorNotes).HasMaxLength(4000);
-        builder.Property(x => x.FollowUpNotes).HasMaxLength(2000);
+        builder.Property(v => v.ChiefComplaint)
+            .HasMaxLength(1000);
 
-        // Vitals stored as owned type
-        builder.OwnsOne(x => x.Vitals, v =>
-        {
-            v.Property(x => x.Temperature).HasColumnName("Vitals_Temperature");
-            v.Property(x => x.BloodPressureSystolic).HasColumnName("Vitals_BPSystolic");
-            v.Property(x => x.BloodPressureDiastolic).HasColumnName("Vitals_BPDiastolic");
-            v.Property(x => x.HeartRate).HasColumnName("Vitals_HeartRate");
-            v.Property(x => x.RespiratoryRate).HasColumnName("Vitals_RespiratoryRate");
-            v.Property(x => x.OxygenSaturation).HasColumnName("Vitals_OxygenSaturation");
-            v.Property(x => x.Weight).HasColumnName("Vitals_Weight");
-            v.Property(x => x.Height).HasColumnName("Vitals_Height");
-            v.Property(x => x.BMI).HasColumnName("Vitals_BMI");
-        });
+        builder.Property(v => v.Symptoms)
+            .HasMaxLength(2000);
 
-        builder.HasIndex(x => new { x.ClinicId, x.PatientId });
-        builder.HasIndex(x => new { x.ClinicId, x.DoctorId });
-        builder.HasIndex(x => x.VisitDate);
+        builder.Property(v => v.Diagnosis)
+            .HasMaxLength(2000);
 
-        builder.HasOne(x => x.Patient)
-            .WithMany(x => x.Visits)
-            .HasForeignKey(x => x.PatientId)
+        builder.Property(v => v.DifferentialDiagnosis)
+            .HasMaxLength(2000);
+
+        builder.Property(v => v.TreatmentPlan)
+            .HasMaxLength(4000);
+
+        builder.Property(v => v.DoctorNotes)
+            .HasMaxLength(4000);
+
+        builder.Property(v => v.FollowUpNotes)
+            .HasMaxLength(2000);
+
+        builder.HasIndex(v => new { v.ClinicId, v.PatientId });
+        builder.HasIndex(v => new { v.ClinicId, v.DoctorId });
+
+        builder.HasOne(v => v.Patient)
+            .WithMany(p => p.Visits)
+            .HasForeignKey(v => v.PatientId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Doctor)
+        builder.HasOne(v => v.Doctor)
             .WithMany()
-            .HasForeignKey(x => x.DoctorId)
+            .HasForeignKey(v => v.DoctorId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Appointment)
+        builder.HasOne(v => v.Clinic)
+            .WithMany()
+            .HasForeignKey(v => v.ClinicId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(v => v.Appointment)
             .WithOne()
-            .HasForeignKey<Visit>(x => x.AppointmentId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .HasForeignKey<Visit>(v => v.AppointmentId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
     }
 }

@@ -8,23 +8,22 @@ public class ClinicMemberConfiguration : IEntityTypeConfiguration<ClinicMember>
 {
     public void Configure(EntityTypeBuilder<ClinicMember> builder)
     {
-        builder.ToTable("ClinicMembers");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(cm => cm.Id);
 
-        builder.HasIndex(x => new { x.ClinicId, x.UserId }).IsUnique();
+        builder.HasIndex(cm => new { cm.ClinicId, cm.UserId }).IsUnique();
 
-        builder.Property(x => x.Role)
+        builder.Property(cm => cm.Role)
             .IsRequired()
             .HasMaxLength(50);
 
-        builder.HasOne(x => x.Clinic)
-            .WithMany(x => x.Members)
-            .HasForeignKey(x => x.ClinicId)
+        builder.HasOne(cm => cm.Clinic)
+            .WithMany(c => c.Members)
+            .HasForeignKey(cm => cm.ClinicId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(x => x.User)
-            .WithMany(x => x.ClinicMemberships)
-            .HasForeignKey(x => x.UserId)
+        builder.HasOne(cm => cm.User)
+            .WithMany(u => u.ClinicMemberships)
+            .HasForeignKey(cm => cm.UserId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

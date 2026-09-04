@@ -8,31 +8,54 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
 {
     public void Configure(EntityTypeBuilder<Patient> builder)
     {
-        builder.ToTable("Patients");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(p => p.Id);
 
-        builder.Property(x => x.FirstName).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.LastName).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.NationalId).HasMaxLength(50);
-        builder.Property(x => x.Phone).HasMaxLength(50);
-        builder.Property(x => x.Email).HasMaxLength(200);
-        builder.Property(x => x.Address).HasMaxLength(500);
-        builder.Property(x => x.City).HasMaxLength(100);
-        builder.Property(x => x.Country).HasMaxLength(100);
-        builder.Property(x => x.EmergencyContactName).HasMaxLength(200);
-        builder.Property(x => x.EmergencyContactPhone).HasMaxLength(50);
-        builder.Property(x => x.Allergies).HasMaxLength(2000);
-        builder.Property(x => x.ChronicConditions).HasMaxLength(2000);
-        builder.Property(x => x.Notes).HasMaxLength(4000);
-        builder.Property(x => x.AvatarUrl).HasMaxLength(500);
+        builder.Property(p => p.FirstName)
+            .IsRequired()
+            .HasMaxLength(100);
 
-        builder.HasIndex(x => new { x.ClinicId, x.NationalId });
-        builder.HasIndex(x => new { x.ClinicId, x.Phone });
-        builder.HasIndex(x => x.ClinicId);
+        builder.Property(p => p.LastName)
+            .IsRequired()
+            .HasMaxLength(100);
 
-        builder.HasOne(x => x.Clinic)
-            .WithMany(x => x.Patients)
-            .HasForeignKey(x => x.ClinicId)
+        builder.Property(p => p.NationalId)
+            .HasMaxLength(50);
+
+        builder.HasIndex(p => new { p.ClinicId, p.NationalId })
+            .IsUnique()
+            .HasFilter("\"NationalId\" IS NOT NULL");
+
+        builder.Property(p => p.Phone)
+            .HasMaxLength(50);
+
+        builder.Property(p => p.Email)
+            .HasMaxLength(200);
+
+        builder.Property(p => p.Address)
+            .HasMaxLength(500);
+
+        builder.Property(p => p.Allergies)
+            .HasMaxLength(2000);
+
+        builder.Property(p => p.ChronicConditions)
+            .HasMaxLength(2000);
+
+        builder.Property(p => p.Notes)
+            .HasMaxLength(4000);
+
+        builder.HasOne(p => p.Clinic)
+            .WithMany()
+            .HasForeignKey(p => p.ClinicId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(p => p.Visits)
+            .WithOne(v => v.Patient)
+            .HasForeignKey(v => v.PatientId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(p => p.Appointments)
+            .WithOne(a => a.Patient)
+            .HasForeignKey(a => a.PatientId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }
