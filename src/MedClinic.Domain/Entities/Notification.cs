@@ -3,16 +3,16 @@ using MedClinic.Domain.Enums;
 
 namespace MedClinic.Domain.Entities;
 
-public class Notification : TenantEntity
+public class Notification : BaseEntity
 {
-    public Guid? PatientId { get; set; }
-    public Patient? Patient { get; set; }
-    public Guid? UserId { get; set; }
+    public Guid UserId { get; set; }
+    public Guid? ClinicId { get; set; }
     public NotificationType Type { get; set; }
     public string Title { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
+    public string? Link { get; set; }
     public bool IsRead { get; set; } = false;
     public DateTime? ReadAt { get; set; }
-    public string? ActionUrl { get; set; }
-    public Clinic Clinic { get; set; } = null!;
+    public Guid? RelatedEntityId { get; set; }
+    public string? RelatedEntityType { get; set; }
 }

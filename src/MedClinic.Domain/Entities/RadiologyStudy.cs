@@ -5,20 +5,25 @@ namespace MedClinic.Domain.Entities;
 public class RadiologyStudy : TenantEntity
 {
     public Guid PatientId { get; set; }
-    public Patient Patient { get; set; } = null!;
-    public Guid DoctorId { get; set; }
-    public Doctor Doctor { get; set; } = null!;
+    public Guid? DoctorId { get; set; }
     public Guid? VisitId { get; set; }
-    public Visit? Visit { get; set; }
-    public string StudyType { get; set; } = string.Empty;
+    public string StudyType { get; set; } = string.Empty; // X-Ray, CT, MRI, Ultrasound
     public string? BodyPart { get; set; }
-    public string? ClinicalIndication { get; set; }
-    public string? Report { get; set; }
-    public bool IsAIAnalyzed { get; set; } = false;
-    public bool RequiresDoctorReview { get; set; } = true;
     public DateTime StudyDate { get; set; } = DateTime.UtcNow;
-    public Clinic Clinic { get; set; } = null!;
+    public string? ClinicalInfo { get; set; }
+    public string? Findings { get; set; }
+    public string? Impression { get; set; }
+    public string? Notes { get; set; }
+    public string? ReportedBy { get; set; }
+    public DateTime? ReportedAt { get; set; }
+    public string? AccessionNumber { get; set; }
+    public RadiologyStudyStatus Status { get; set; } = RadiologyStudyStatus.Pending;
+    public bool IsAIAnalyzed { get; set; } = false;
+    public bool DoctorReviewed { get; set; } = false;
 
+    public Patient Patient { get; set; } = null!;
     public ICollection<MedicalImage> Images { get; set; } = [];
     public ICollection<AIAnalysis> AIAnalyses { get; set; } = [];
 }
+
+public enum RadiologyStudyStatus { Pending, InProgress, Completed, Cancelled }
