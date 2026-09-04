@@ -4,16 +4,13 @@ namespace MedClinic.Domain.Entities;
 
 public class LabResultItem : BaseEntity
 {
-    public Guid LabResultId { get; set; }
-    public string TestName { get; set; } = string.Empty;
-    public string? Value { get; set; }
-    public string? Unit { get; set; }
-    public string? ReferenceRange { get; set; }
-    public AbnormalFlag AbnormalFlag { get; set; } = AbnormalFlag.Normal;
-    public string? Notes { get; set; }
-    public int SortOrder { get; set; } = 0;
+    public Guid    LabResultId    { get; set; }
+    public string  TestParameter  { get; set; } = string.Empty; // e.g. "Hemoglobin"
+    public string? Value          { get; set; } // e.g. "13.5"
+    public string? Unit           { get; set; } // e.g. "g/dL"
+    public string? ReferenceRange { get; set; } // e.g. "12.0 - 17.5"
+    public bool    IsAbnormal     { get; set; } = false;
+    public string? Notes          { get; set; }
 
     public LabResult LabResult { get; set; } = null!;
 }
-
-public enum AbnormalFlag { Normal, Low, High, Critical, Abnormal }
