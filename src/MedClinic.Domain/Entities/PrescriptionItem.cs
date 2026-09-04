@@ -4,16 +4,14 @@ namespace MedClinic.Domain.Entities;
 
 public class PrescriptionItem : BaseEntity
 {
-    public Guid PrescriptionId { get; set; }
-    public string MedicationName { get; set; } = string.Empty;
-    public string Dose { get; set; } = string.Empty;
-    public string Frequency { get; set; } = string.Empty;
-    public string? Duration { get; set; }
-    public string? Route { get; set; }
-    public string? Instructions { get; set; }
-    public string? Notes { get; set; }
-    public int? Quantity { get; set; }
-    public int? Refills { get; set; }
+    public Guid   PrescriptionId { get; set; }
+    public string MedicineName   { get; set; } = string.Empty;
+    public string? Dosage        { get; set; }  // e.g. "500mg"
+    public string? Frequency     { get; set; }  // e.g. "3 times daily"
+    public int?    DurationDays  { get; set; }
+    public string? Route         { get; set; }  // Oral, IV, Topical ...
+    public string? Instructions  { get; set; }  // "Take after meals"
+    public int?    Quantity      { get; set; }  // Total units to dispense
 
     public Prescription Prescription { get; set; } = null!;
 }
