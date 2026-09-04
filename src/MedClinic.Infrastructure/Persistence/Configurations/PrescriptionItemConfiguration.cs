@@ -8,15 +8,28 @@ public class PrescriptionItemConfiguration : IEntityTypeConfiguration<Prescripti
 {
     public void Configure(EntityTypeBuilder<PrescriptionItem> builder)
     {
-        builder.ToTable("PrescriptionItems");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(pi => pi.Id);
 
-        builder.Property(x => x.MedicationName).IsRequired().HasMaxLength(300);
-        builder.Property(x => x.Dose).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.Frequency).IsRequired().HasMaxLength(100);
-        builder.Property(x => x.Duration).HasMaxLength(100);
-        builder.Property(x => x.Route).HasMaxLength(100);
-        builder.Property(x => x.Instructions).HasMaxLength(1000);
-        builder.Property(x => x.Notes).HasMaxLength(500);
+        builder.Property(pi => pi.MedicationName)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(pi => pi.Dose)
+            .HasMaxLength(100);
+
+        builder.Property(pi => pi.Frequency)
+            .HasMaxLength(100);
+
+        builder.Property(pi => pi.Duration)
+            .HasMaxLength(100);
+
+        builder.Property(pi => pi.Route)
+            .HasMaxLength(100);
+
+        builder.Property(pi => pi.Instructions)
+            .HasMaxLength(1000);
+
+        builder.Property(pi => pi.Notes)
+            .HasMaxLength(500);
     }
 }

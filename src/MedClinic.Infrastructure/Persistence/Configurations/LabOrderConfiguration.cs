@@ -8,35 +8,30 @@ public class LabOrderConfiguration : IEntityTypeConfiguration<LabOrder>
 {
     public void Configure(EntityTypeBuilder<LabOrder> builder)
     {
-        builder.ToTable("LabOrders");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(lo => lo.Id);
 
-        builder.Property(x => x.TestName).IsRequired().HasMaxLength(300);
-        builder.Property(x => x.Notes).HasMaxLength(1000);
-        builder.Property(x => x.ClinicalInfo).HasMaxLength(2000);
+        builder.Property(lo => lo.Status)
+            .IsRequired()
+            .HasMaxLength(50);
 
-        builder.HasIndex(x => new { x.ClinicId, x.PatientId });
-        builder.HasIndex(x => x.Status);
-        builder.HasIndex(x => x.OrderedAt);
+        builder.Property(lo => lo.Notes)
+            .HasMaxLength(2000);
 
-        builder.HasOne(x => x.Patient)
-            .WithMany(x => x.LabOrders)
-            .HasForeignKey(x => x.PatientId)
+        builder.HasIndex(lo => new { lo.ClinicId, lo.PatientId });
+
+        builder.HasOne(lo => lo.Patient)
+            .WithMany()
+            .HasForeignKey(lo => lo.PatientId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Doctor)
+        builder.HasOne(lo => lo.Doctor)
             .WithMany()
-            .HasForeignKey(x => x.DoctorId)
+            .HasForeignKey(lo => lo.DoctorId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Visit)
-            .WithMany()
-            .HasForeignKey(x => x.VisitId)
-            .OnDelete(DeleteBehavior.SetNull);
-
-        builder.HasMany(x => x.Results)
-            .WithOne(x => x.LabOrder)
-            .HasForeignKey(x => x.LabOrderId)
+        builder.HasMany(lo => lo.Results)
+            .WithOne(r => r.LabOrder)
+            .HasForeignKey(r => r.LabOrderId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

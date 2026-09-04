@@ -8,13 +8,25 @@ public class LabResultItemConfiguration : IEntityTypeConfiguration<LabResultItem
 {
     public void Configure(EntityTypeBuilder<LabResultItem> builder)
     {
-        builder.ToTable("LabResultItems");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(i => i.Id);
 
-        builder.Property(x => x.TestName).IsRequired().HasMaxLength(200);
-        builder.Property(x => x.Value).HasMaxLength(200);
-        builder.Property(x => x.Unit).HasMaxLength(50);
-        builder.Property(x => x.ReferenceRange).HasMaxLength(200);
-        builder.Property(x => x.Notes).HasMaxLength(500);
+        builder.Property(i => i.TestName)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(i => i.Value)
+            .HasMaxLength(200);
+
+        builder.Property(i => i.Unit)
+            .HasMaxLength(50);
+
+        builder.Property(i => i.ReferenceRange)
+            .HasMaxLength(200);
+
+        builder.Property(i => i.Status)
+            .HasMaxLength(50);
+
+        builder.Property(i => i.Notes)
+            .HasMaxLength(500);
     }
 }

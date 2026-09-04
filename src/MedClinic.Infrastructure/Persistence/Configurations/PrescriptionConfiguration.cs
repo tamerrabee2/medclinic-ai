@@ -8,33 +8,36 @@ public class PrescriptionConfiguration : IEntityTypeConfiguration<Prescription>
 {
     public void Configure(EntityTypeBuilder<Prescription> builder)
     {
-        builder.ToTable("Prescriptions");
-        builder.HasKey(x => x.Id);
+        builder.HasKey(p => p.Id);
 
-        builder.Property(x => x.Notes).HasMaxLength(2000);
-        builder.Property(x => x.DiagnosisSummary).HasMaxLength(1000);
+        builder.Property(p => p.Notes)
+            .HasMaxLength(2000);
 
-        builder.HasIndex(x => new { x.ClinicId, x.PatientId });
-        builder.HasIndex(x => x.IssuedAt);
+        builder.Property(p => p.Status)
+            .IsRequired()
+            .HasMaxLength(50);
 
-        builder.HasOne(x => x.Patient)
-            .WithMany(x => x.Prescriptions)
-            .HasForeignKey(x => x.PatientId)
+        builder.HasIndex(p => new { p.ClinicId, p.PatientId });
+
+        builder.HasOne(p => p.Patient)
+            .WithMany()
+            .HasForeignKey(p => p.PatientId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Doctor)
+        builder.HasOne(p => p.Doctor)
             .WithMany()
-            .HasForeignKey(x => x.DoctorId)
+            .HasForeignKey(p => p.DoctorId)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.HasOne(x => x.Visit)
-            .WithMany()
-            .HasForeignKey(x => x.VisitId)
-            .OnDelete(DeleteBehavior.SetNull);
+        builder.HasOne(p => p.Visit)
+            .WithOne()
+            .HasForeignKey<Prescription>(p => p.VisitId)
+            .OnDelete(DeleteBehavior.SetNull)
+            .IsRequired(false);
 
-        builder.HasMany(x => x.Items)
-            .WithOne(x => x.Prescription)
-            .HasForeignKey(x => x.PrescriptionId)
+        builder.HasMany(p => p.Items)
+            .WithOne(i => i.Prescription)
+            .HasForeignKey(i => i.PrescriptionId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }
