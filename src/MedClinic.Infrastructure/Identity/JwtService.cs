@@ -27,6 +27,12 @@ public class JwtService : IJwtService
     }
 
     public string GenerateAccessToken(ApplicationUser user, IList<string> roles)
+        => BuildToken(user, roles, clinicId: null);
+
+    public string GenerateAccessTokenWithClinic(ApplicationUser user, IList<string> roles, Guid clinicId)
+        => BuildToken(user, roles, clinicId);
+
+    private string BuildToken(ApplicationUser user, IList<string> roles, Guid? clinicId)
     {
         var claims = new List<Claim>
         {
@@ -38,10 +44,12 @@ public class JwtService : IJwtService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
+        if (clinicId.HasValue)
+            claims.Add(new Claim("clinic_id", clinicId.Value.ToString()));
+
         foreach (var role in roles)
             claims.Add(new Claim(ClaimTypes.Role, role));
 
-        // Embed permissions directly into the token
         var permissions = PermissionClaimsFactory.GetPermissionsForRoles(roles);
         foreach (var perm in permissions)
             claims.Add(new Claim("permission", perm));
@@ -60,35 +68,30 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public RefreshToken GenerateRefreshToken(Guid userId) =>
-        new()
-        {
-            Id = Guid.NewGuid(),
-            UserId = userId,
-            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
-            ExpiresAt = DateTime.UtcNow.AddDays(_refreshExpiryDays),
-            CreatedAt = DateTime.UtcNow
-        };
+    public RefreshToken GenerateRefreshToken(Guid userId) => new()
+    {
+        Id = Guid.NewGuid(),
+        UserId = userId,
+        Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+        ExpiresAt = DateTime.UtcNow.AddDays(_refreshExpiryDays),
+        CreatedAt = DateTime.UtcNow
+    };
 
     public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
     {
-        var tokenValidationParameters = new TokenValidationParameters
+        var tvp = new TokenValidationParameters
         {
-            ValidateAudience = true,
-            ValidAudience = _audience,
-            ValidateIssuer = true,
-            ValidIssuer = _issuer,
+            ValidateAudience = true, ValidAudience = _audience,
+            ValidateIssuer = true, ValidIssuer = _issuer,
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_secret)),
             ValidateLifetime = false
         };
 
-        var principal = new JwtSecurityTokenHandler()
-            .ValidateToken(token, tokenValidationParameters, out var securityToken);
+        var principal = new JwtSecurityTokenHandler().ValidateToken(token, tvp, out var securityToken);
 
         if (securityToken is not JwtSecurityToken jwtToken ||
-            !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256,
-                StringComparison.InvariantCultureIgnoreCase))
+            !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
             return null;
 
         return principal;

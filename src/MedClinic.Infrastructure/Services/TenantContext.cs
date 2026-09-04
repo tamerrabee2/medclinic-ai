@@ -17,16 +17,20 @@ public class TenantContext : ITenantContext
     {
         get
         {
-            var clinicIdClaim = _httpContextAccessor.HttpContext?.User
-                .FindFirstValue("clinic_id");
+            // First: from TenantMiddleware resolved value
+            if (_httpContextAccessor.HttpContext?.Items.TryGetValue("ClinicId", out var item) == true
+                && item is Guid resolvedId)
+                return resolvedId;
 
-            if (Guid.TryParse(clinicIdClaim, out var clinicId))
-                return clinicId;
-
-            // Also check request header for API clients
+            // Fallback: from header
             var headerValue = _httpContextAccessor.HttpContext?.Request.Headers["X-Clinic-Id"].ToString();
-            if (!string.IsNullOrWhiteSpace(headerValue) && Guid.TryParse(headerValue, out var headerClinicId))
-                return headerClinicId;
+            if (!string.IsNullOrWhiteSpace(headerValue) && Guid.TryParse(headerValue, out var headerId))
+                return headerId;
+
+            // Fallback: from JWT claim
+            var claim = _httpContextAccessor.HttpContext?.User.FindFirstValue("clinic_id");
+            if (Guid.TryParse(claim, out var claimId))
+                return claimId;
 
             return null;
         }
@@ -36,15 +40,14 @@ public class TenantContext : ITenantContext
     {
         get
         {
-            var userIdClaim = _httpContextAccessor.HttpContext?.User
+            var claim = _httpContextAccessor.HttpContext?.User
                 .FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (Guid.TryParse(userIdClaim, out var userId))
-                return userId;
-
-            return null;
+            return Guid.TryParse(claim, out var id) ? id : null;
         }
     }
+
+    public string? ClinicName =>
+        _httpContextAccessor.HttpContext?.Items["ClinicName"] as string;
 
     public bool IsAuthenticated =>
         _httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true;
@@ -53,4 +56,10 @@ public class TenantContext : ITenantContext
         _httpContextAccessor.HttpContext?.User
             .FindAll(ClaimTypes.Role)
             .Select(c => c.Value) ?? [];
+
+    public bool IsInRole(string role) =>
+        _httpContextAccessor.HttpContext?.User.IsInRole(role) == true;
+
+    public bool IsSuperAdmin =>
+        IsInRole(MedClinic.Shared.Constants.Roles.SuperAdmin);
 }

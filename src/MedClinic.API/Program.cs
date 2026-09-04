@@ -1,6 +1,8 @@
 using MedClinic.Infrastructure.Extensions;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.API.Middleware;
+using MedClinic.API.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
@@ -18,7 +20,6 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
-    // Serilog
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
@@ -26,14 +27,15 @@ try
         .WriteTo.Console()
         .WriteTo.File("logs/medclinic-.log", rollingInterval: RollingInterval.Day));
 
-    // Infrastructure (DB, Auth, Identity, AI, Storage, etc.)
     builder.Services.AddInfrastructure(builder.Configuration);
 
-    // Controllers
+    // RBAC — dynamic permission policies
+    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
+    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
+
     builder.Services.AddControllers();
     builder.Services.AddEndpointsApiExplorer();
 
-    // Swagger / OpenAPI
     builder.Services.AddSwaggerGen(c =>
     {
         c.SwaggerDoc("v1", new OpenApiInfo
@@ -42,7 +44,6 @@ try
             Version = "v1",
             Description = "AI-powered Medical Clinic Management Platform"
         });
-
         c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
         {
             Description = "JWT Authorization header. Enter: Bearer {token}",
@@ -51,7 +52,6 @@ try
             Type = SecuritySchemeType.ApiKey,
             Scheme = "Bearer"
         });
-
         c.AddSecurityRequirement(new OpenApiSecurityRequirement
         {
             {
@@ -64,7 +64,6 @@ try
         });
     });
 
-    // CORS
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowFrontend", policy =>
@@ -78,30 +77,23 @@ try
         });
     });
 
-    // Health Checks
     builder.Services.AddHealthChecks()
         .AddNpgSql(
             builder.Configuration.GetConnectionString("DefaultConnection")!,
             name: "postgresql",
             tags: ["db", "ready"])
-        .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(), tags: ["live"]);
-
-    // API Versioning
-    builder.Services.AddApiVersioning(options =>
-    {
-        options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
-        options.AssumeDefaultVersionWhenUnspecified = true;
-        options.ReportApiVersions = true;
-    });
+        .AddCheck("self",
+            () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
+            tags: ["live"]);
 
     var app = builder.Build();
 
-    // Auto-run migrations in development
     if (app.Environment.IsDevelopment())
     {
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.MigrateAsync();
+        await DataSeeder.SeedAsync(app.Services);
     }
 
     app.UseMiddleware<GlobalExceptionMiddleware>();
@@ -124,9 +116,11 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
+    // Tenant resolution AFTER auth (needs authenticated user)
+    app.UseMiddleware<TenantMiddleware>();
+
     app.MapControllers();
 
-    // Health check endpoints
     app.MapHealthChecks("/health");
     app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
     {
