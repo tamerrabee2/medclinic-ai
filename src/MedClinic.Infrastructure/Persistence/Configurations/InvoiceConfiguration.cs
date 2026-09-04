@@ -6,48 +6,27 @@ namespace MedClinic.Infrastructure.Persistence.Configurations;
 
 public class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
 {
-    public void Configure(EntityTypeBuilder<Invoice> builder)
+    public void Configure(EntityTypeBuilder<Invoice> b)
     {
-        builder.HasKey(i => i.Id);
+        b.HasKey(i => i.Id);
+        b.Property(i => i.InvoiceNumber).IsRequired().HasMaxLength(50);
+        b.HasIndex(i => new { i.ClinicId, i.InvoiceNumber }).IsUnique();
+        b.Property(i => i.TotalAmount).HasColumnType("decimal(18,2)");
+        b.Property(i => i.PaidAmount).HasColumnType("decimal(18,2)");
+        b.Property(i => i.DiscountAmount).HasColumnType("decimal(18,2)");
+        b.Property(i => i.TaxAmount).HasColumnType("decimal(18,2)");
+        b.Property(i => i.SubTotal).HasColumnType("decimal(18,2)");
+        b.Property(i => i.Currency).HasMaxLength(10).HasDefaultValue("USD");
+        b.Property(i => i.Status).HasConversion<string>();
 
-        builder.Property(i => i.InvoiceNumber)
-            .IsRequired()
-            .HasMaxLength(50);
-
-        builder.HasIndex(i => new { i.ClinicId, i.InvoiceNumber }).IsUnique();
-
-        builder.Property(i => i.Status)
-            .IsRequired()
-            .HasMaxLength(50);
-
-        builder.Property(i => i.Notes)
-            .HasMaxLength(2000);
-
-        builder.Property(i => i.TotalAmount)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Property(i => i.DiscountAmount)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Property(i => i.TaxAmount)
-            .HasColumnType("decimal(18,2)");
-
-        builder.Property(i => i.PaidAmount)
-            .HasColumnType("decimal(18,2)");
-
-        builder.HasOne(i => i.Patient)
-            .WithMany()
-            .HasForeignKey(i => i.PatientId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(i => i.Items)
-            .WithOne(item => item.Invoice)
-            .HasForeignKey(item => item.InvoiceId)
+        b.HasMany(i => i.Items)
+            .WithOne(it => it.Invoice)
+            .HasForeignKey(it => it.InvoiceId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasMany(i => i.Payments)
+        b.HasMany(i => i.Payments)
             .WithOne(p => p.Invoice)
             .HasForeignKey(p => p.InvoiceId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

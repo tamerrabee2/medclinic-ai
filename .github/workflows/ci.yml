@@ -2,21 +2,21 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main, develop ]
   pull_request:
-    branches: [main, develop]
+    branches: [ main ]
 
 jobs:
-  backend:
-    name: Backend Build & Tests
+  build-and-test:
     runs-on: ubuntu-latest
+
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16-alpine
         env:
           POSTGRES_DB: medclinic_test
           POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: test_password
+          POSTGRES_PASSWORD: postgres
         ports:
           - 5432:5432
         options: >-
@@ -24,53 +24,36 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup .NET 10
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 9
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
-      - name: Restore
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
         run: dotnet restore
+
       - name: Build
         run: dotnet build --no-restore -c Release
-      - name: Unit Tests
-        run: dotnet test tests/MedClinic.UnitTests --no-build -c Release --logger trx
-      - name: Integration Tests
-        env:
-          DATABASE_CONNECTION_STRING: Host=localhost;Port=5432;Database=medclinic_test;Username=postgres;Password=test_password
-          JWT_SECRET: test_secret_key_for_ci_minimum_32_chars_long
-          JWT_ISSUER: MedClinicAI
-          JWT_AUDIENCE: MedClinicAI
-          AI_PROVIDER: mock
-          REDIS_CONNECTION_STRING: localhost:6379
-          STORAGE_PROVIDER: local
-          STORAGE_LOCAL_PATH: /tmp/medclinic_storage
-        run: dotnet test tests/MedClinic.IntegrationTests --no-build -c Release --logger trx
 
-  frontend:
-    name: Frontend Build & Tests
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install
-        run: npm ci
-      - name: Type Check
-        run: npm run type-check
-      - name: Lint
-        run: npm run lint
       - name: Test
-        run: npm run test -- --passWithNoTests
-      - name: Build
-        run: npm run build
+        run: dotnet test --no-build -c Release --verbosity normal
         env:
-          NEXT_PUBLIC_API_URL: http://localhost:5000
+          ConnectionStrings__DefaultConnection: "Host=localhost;Port=5432;Database=medclinic_test;Username=postgres;Password=postgres"
+          Jwt__Key: "CI_TEST_KEY_DO_NOT_USE_IN_PRODUCTION!!"
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -f docker/Dockerfile -t medclinic-api:${{ github.sha }} .

@@ -1,143 +1,156 @@
+using MedClinic.API.Middleware;
+using MedClinic.Application.Interfaces;
 using MedClinic.Infrastructure.Extensions;
 using MedClinic.Infrastructure.Persistence;
-using MedClinic.API.Middleware;
-using MedClinic.API.Authorization;
-using Microsoft.AspNetCore.Authorization;
+using MedClinic.Infrastructure.Persistence.Seeder;
+using MedClinic.Infrastructure.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Serilog;
-using Serilog.Events;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Text;
 
-Log.Logger = new LoggerConfiguration()
-    .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-    .Enrich.FromLogContext()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
+var builder = WebApplication.CreateBuilder(args);
+var config  = builder.Configuration;
 
-try
-{
-    Log.Information("Starting MedClinic AI API...");
+// ──────────────────────────────────────────────────────────────────
+// DATABASE
+// ──────────────────────────────────────────────────────────────────
+builder.Services.AddDbContext<ApplicationDbContext>(opts =>
+    opts.UseNpgsql(
+        config.GetConnectionString("DefaultConnection"),
+        npgsql => npgsql.MigrationsAssembly("MedClinic.Infrastructure")
+    ));
 
-    var builder = WebApplication.CreateBuilder(args);
+// ──────────────────────────────────────────────────────────────────
+// JWT AUTHENTICATION
+// ──────────────────────────────────────────────────────────────────
+var jwtKey    = config["Jwt:Key"]    ?? throw new InvalidOperationException("Jwt:Key missing.");
+var jwtIssuer = config["Jwt:Issuer"] ?? "MedClinicAPI";
+var jwtAudience = config["Jwt:Audience"] ?? "MedClinicClients";
 
-    builder.Host.UseSerilog((context, services, configuration) => configuration
-        .ReadFrom.Configuration(context.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .WriteTo.Console()
-        .WriteTo.File("logs/medclinic-.log", rollingInterval: RollingInterval.Day));
-
-    builder.Services.AddInfrastructure(builder.Configuration);
-
-    // RBAC — dynamic permission policies
-    builder.Services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-    builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
-
-    builder.Services.AddControllers();
-    builder.Services.AddEndpointsApiExplorer();
-
-    builder.Services.AddSwaggerGen(c =>
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opts =>
     {
-        c.SwaggerDoc("v1", new OpenApiInfo
+        opts.TokenValidationParameters = new TokenValidationParameters
         {
-            Title = "MedClinic AI API",
-            Version = "v1",
-            Description = "AI-powered Medical Clinic Management Platform"
-        });
-        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer              = jwtIssuer,
+            ValidAudience            = jwtAudience,
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ClockSkew                = TimeSpan.Zero
+        };
+    });
+
+// ──────────────────────────────────────────────────────────────────
+// AUTHORIZATION
+// ──────────────────────────────────────────────────────────────────
+builder.Services.AddAuthorization(opts =>
+{
+    // Dynamically register a policy for every permission constant
+    var permissions = typeof(MedClinic.Shared.Constants.Permissions)
+        .GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+        .Where(f => f.FieldType == typeof(string))
+        .Select(f => (string)f.GetValue(null)!);
+
+    foreach (var perm in permissions)
+        opts.AddPolicy(perm, policy => policy.RequireClaim("permission", perm));
+});
+
+// ──────────────────────────────────────────────────────────────────
+// APPLICATION SERVICES
+// ──────────────────────────────────────────────────────────────────
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantContext, TenantContext>();
+builder.Services.AddScoped<DatabaseSeeder>();
+builder.Services.AddInfrastructureServices();
+
+// ──────────────────────────────────────────────────────────────────
+// CONTROLLERS + SWAGGER
+// ──────────────────────────────────────────────────────────────────
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(opts =>
+{
+    opts.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title       = "MedClinic AI API",
+        Version     = "v1",
+        Description = "Multi-tenant clinic management system with AI assistant"
+    });
+
+    // JWT Auth in Swagger
+    opts.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name         = "Authorization",
+        Type         = SecuritySchemeType.Http,
+        Scheme       = "bearer",
+        BearerFormat = "JWT",
+        In           = ParameterLocation.Header,
+        Description  = "Enter JWT token"
+    });
+    opts.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
         {
-            Description = "JWT Authorization header. Enter: Bearer {token}",
-            Name = "Authorization",
-            In = ParameterLocation.Header,
-            Type = SecuritySchemeType.ApiKey,
-            Scheme = "Bearer"
-        });
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
-        {
+            new OpenApiSecurityScheme
             {
-                new OpenApiSecurityScheme
+                Reference = new OpenApiReference
                 {
-                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-                },
-                Array.Empty<string>()
-            }
-        });
+                    Type = ReferenceType.SecurityScheme,
+                    Id   = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
     });
+});
 
-    builder.Services.AddCors(options =>
+// CORS
+builder.Services.AddCors(opts =>
+    opts.AddDefaultPolicy(p =>
+        p.AllowAnyOrigin()
+         .AllowAnyHeader()
+         .AllowAnyMethod()));
+
+// ──────────────────────────────────────────────────────────────────
+var app = builder.Build();
+
+// ── Auto-migrate + Seed ──
+using (var scope = app.Services.CreateScope())
+{
+    var db     = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var seeder = scope.ServiceProvider.GetRequiredService<DatabaseSeeder>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+
+    try
     {
-        options.AddPolicy("AllowFrontend", policy =>
-        {
-            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins")
-                .Get<string[]>() ?? ["http://localhost:3000"];
-            policy.WithOrigins(allowedOrigins)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
-        });
-    });
-
-    builder.Services.AddHealthChecks()
-        .AddNpgSql(
-            builder.Configuration.GetConnectionString("DefaultConnection")!,
-            name: "postgresql",
-            tags: ["db", "ready"])
-        .AddCheck("self",
-            () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy(),
-            tags: ["live"]);
-
-    var app = builder.Build();
-
-    if (app.Environment.IsDevelopment())
-    {
-        using var scope = app.Services.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        logger.LogInformation("Applying migrations...");
         await db.Database.MigrateAsync();
-        await DataSeeder.SeedAsync(app.Services);
+        await seeder.SeedAsync();
     }
-
-    app.UseMiddleware<GlobalExceptionMiddleware>();
-    app.UseMiddleware<CorrelationIdMiddleware>();
-
-    app.UseSerilogRequestLogging();
-
-    if (app.Environment.IsDevelopment())
+    catch (Exception ex)
     {
-        app.UseSwagger();
-        app.UseSwaggerUI(c =>
-        {
-            c.SwaggerEndpoint("/swagger/v1/swagger.json", "MedClinic AI API v1");
-            c.RoutePrefix = "swagger";
-        });
+        logger.LogError(ex, "Migration/Seeder error.");
+        throw;
     }
-
-    app.UseHttpsRedirection();
-    app.UseCors("AllowFrontend");
-    app.UseAuthentication();
-    app.UseAuthorization();
-
-    // Tenant resolution AFTER auth (needs authenticated user)
-    app.UseMiddleware<TenantMiddleware>();
-
-    app.MapControllers();
-
-    app.MapHealthChecks("/health");
-    app.MapHealthChecks("/health/ready", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-    {
-        Predicate = check => check.Tags.Contains("ready")
-    });
-    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
-    {
-        Predicate = check => check.Tags.Contains("live")
-    });
-
-    await app.RunAsync();
 }
-catch (Exception ex)
+
+// ── Middleware Pipeline ──
+if (app.Environment.IsDevelopment())
 {
-    Log.Fatal(ex, "Application terminated unexpectedly");
+    app.UseSwagger();
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "MedClinic AI v1"));
 }
-finally
-{
-    await Log.CloseAndFlushAsync();
-}
+
+app.UseHttpsRedirection();
+app.UseCors();
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<TenantMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapControllers();
+
+app.Run();

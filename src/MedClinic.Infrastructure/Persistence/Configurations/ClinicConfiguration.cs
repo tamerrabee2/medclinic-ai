@@ -6,46 +6,17 @@ namespace MedClinic.Infrastructure.Persistence.Configurations;
 
 public class ClinicConfiguration : IEntityTypeConfiguration<Clinic>
 {
-    public void Configure(EntityTypeBuilder<Clinic> builder)
+    public void Configure(EntityTypeBuilder<Clinic> b)
     {
-        builder.HasKey(c => c.Id);
-
-        builder.Property(c => c.Name)
-            .IsRequired()
-            .HasMaxLength(200);
-
-        builder.Property(c => c.Slug)
-            .IsRequired()
-            .HasMaxLength(100);
-
-        builder.HasIndex(c => c.Slug).IsUnique();
-
-        builder.Property(c => c.Email)
-            .HasMaxLength(200);
-
-        builder.Property(c => c.Phone)
-            .HasMaxLength(50);
-
-        builder.Property(c => c.Address)
-            .HasMaxLength(500);
-
-        builder.Property(c => c.City)
-            .HasMaxLength(100);
-
-        builder.Property(c => c.Country)
-            .HasMaxLength(100);
-
-        builder.Property(c => c.LogoUrl)
-            .HasMaxLength(500);
-
-        builder.Property(c => c.IsActive)
-            .HasDefaultValue(true);
-
-        builder.HasMany(c => c.Members)
-            .WithOne(m => m.Clinic)
-            .HasForeignKey(m => m.ClinicId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasQueryFilter(c => !c.IsDeleted);
+        b.HasKey(c => c.Id);
+        b.Property(c => c.Name).IsRequired().HasMaxLength(200);
+        b.Property(c => c.Slug).IsRequired().HasMaxLength(100);
+        b.HasIndex(c => c.Slug).IsUnique();
+        b.Property(c => c.Currency).HasMaxLength(10).HasDefaultValue("USD");
+        b.Property(c => c.Timezone).HasMaxLength(100).HasDefaultValue("UTC");
+        b.Property(c => c.InvoicePrefix).HasMaxLength(20).HasDefaultValue("INV");
+        b.Property(c => c.TaxRate).HasColumnType("decimal(5,2)").HasDefaultValue(0m);
+        b.Property(c => c.DefaultAppointmentDuration).HasDefaultValue(30);
+        b.Property(c => c.AllowOnlineBooking).HasDefaultValue(true);
     }
 }

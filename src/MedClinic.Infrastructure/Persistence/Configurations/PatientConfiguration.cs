@@ -6,56 +6,23 @@ namespace MedClinic.Infrastructure.Persistence.Configurations;
 
 public class PatientConfiguration : IEntityTypeConfiguration<Patient>
 {
-    public void Configure(EntityTypeBuilder<Patient> builder)
+    public void Configure(EntityTypeBuilder<Patient> b)
     {
-        builder.HasKey(p => p.Id);
+        b.HasKey(p => p.Id);
+        b.Property(p => p.FirstName).IsRequired().HasMaxLength(100);
+        b.Property(p => p.LastName).IsRequired().HasMaxLength(100);
+        b.Property(p => p.Phone).HasMaxLength(30);
+        b.Property(p => p.Email).HasMaxLength(200);
+        b.Property(p => p.NationalId).HasMaxLength(50);
+        b.Property(p => p.FileNumber).HasMaxLength(50);
+        b.HasIndex(p => new { p.ClinicId, p.FileNumber }).IsUnique().HasFilter("\"FileNumber\" IS NOT NULL");
+        b.HasIndex(p => new { p.ClinicId, p.NationalId }).IsUnique().HasFilter("\"NationalId\" IS NOT NULL");
+        b.HasIndex(p => new { p.ClinicId, p.Phone });
 
-        builder.Property(p => p.FirstName)
-            .IsRequired()
-            .HasMaxLength(100);
-
-        builder.Property(p => p.LastName)
-            .IsRequired()
-            .HasMaxLength(100);
-
-        builder.Property(p => p.NationalId)
-            .HasMaxLength(50);
-
-        builder.HasIndex(p => new { p.ClinicId, p.NationalId })
-            .IsUnique()
-            .HasFilter("\"NationalId\" IS NOT NULL");
-
-        builder.Property(p => p.Phone)
-            .HasMaxLength(50);
-
-        builder.Property(p => p.Email)
-            .HasMaxLength(200);
-
-        builder.Property(p => p.Address)
-            .HasMaxLength(500);
-
-        builder.Property(p => p.Allergies)
-            .HasMaxLength(2000);
-
-        builder.Property(p => p.ChronicConditions)
-            .HasMaxLength(2000);
-
-        builder.Property(p => p.Notes)
-            .HasMaxLength(4000);
-
-        builder.HasOne(p => p.Clinic)
-            .WithMany()
-            .HasForeignKey(p => p.ClinicId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        builder.HasMany(p => p.Visits)
-            .WithOne(v => v.Patient)
-            .HasForeignKey(v => v.PatientId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasMany(p => p.Appointments)
+        // Relationships
+        b.HasMany(p => p.Allergies)
             .WithOne(a => a.Patient)
             .HasForeignKey(a => a.PatientId)
-            .OnDelete(DeleteBehavior.Restrict);
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }
