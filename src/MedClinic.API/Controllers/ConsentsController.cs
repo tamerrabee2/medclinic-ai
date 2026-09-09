@@ -79,8 +79,8 @@ public sealed class ConsentsController : ControllerBase
                 request.IsGranted,
                 request.ExpiresAt,
                 request.Notes,
-                request.WitnessUserId ?? currentUserId,
-                currentUserId,
+                witnessUserId: currentUserId,
+                grantedByUserId: currentUserId,
                 HttpContext.Connection.RemoteIpAddress?.ToString(),
                 ct);
 
@@ -162,7 +162,6 @@ public record RecordConsentRequest(
     ConsentType ConsentType,
     bool IsGranted,
     DateTime? ExpiresAt,
-    string? Notes,
-    Guid? WitnessUserId = null);
+    string? Notes);
 
 public record RevokeConsentRequest(string Reason);

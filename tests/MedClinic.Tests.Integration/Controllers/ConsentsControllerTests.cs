@@ -444,7 +444,12 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
             });
 
             var aiRes = await _client.SendAsync(aiReq);
-            aiRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            aiRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+            var json = await aiRes.Content.ReadFromJsonAsync<JsonElement>();
+            json.GetProperty("type").GetString().Should().Be("consent_required");
+            json.GetProperty("status").GetInt32().Should().Be(403);
+            json.GetProperty("consentType").GetString().Should().Be(nameof(ConsentType.AiAssistedCare));
         }
 
         // 2. Grant AI consent
@@ -551,5 +556,78 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
 
         var activeRes = await _client.SendAsync(activeReq);
         activeRes.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task RecordConsent_IgnoresAnyClientAttemptToSpoofWitnessId()
+    {
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
+
+        var spoofedWitnessId = Guid.NewGuid();
+
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        req.Content = JsonContent.Create(new
+        {
+            consentType = (int)ConsentType.GeneralCare,
+            isGranted = true,
+            notes = "Testing witness spoofing prevention",
+            witnessUserId = spoofedWitnessId // Attacker tries to forge witness
+        });
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        var body = await res.Content.ReadFromJsonAsync<ConsentDto>(JsonOptions);
+        body.Should().NotBeNull();
+
+        // The system must NEVER accept client-forged witness IDs
+        body!.WitnessUserId.Should().NotBe(spoofedWitnessId);
+
+        // It must securely match the authenticated caller's identity
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var doctorMember = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstAsync(
+            db.ClinicMembers, m => m.ClinicId == clinicAId && m.Role == Roles.Doctor);
+
+        body.WitnessUserId.Should().Be(doctorMember.UserId);
+        body.GrantedByUserId.Should().Be(doctorMember.UserId);
+    }
+
+    [Fact]
+    public async Task HasActiveConsent_ReturnsFalse_WhenConsentIsExpiredInDatabase()
+    {
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
+
+        // 1. Seed an expired consent record directly into database
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var expiredConsent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.Marketing,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow.AddMonths(-6),
+                ExpiresAt = DateTime.UtcNow.AddDays(-2), // expired 2 days ago
+                CreatedAt = DateTime.UtcNow.AddMonths(-6)
+            };
+            db.ConsentRecords.Add(expiredConsent);
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Query active status
+        using var getReq = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/patients/{patientAId}/consents/active/{ConsentType.Marketing}");
+        getReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        getReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(getReq);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var json = await res.Content.ReadFromJsonAsync<JsonElement>();
+        json.GetProperty("hasActiveConsent").GetBoolean().Should().BeFalse();
     }
 }

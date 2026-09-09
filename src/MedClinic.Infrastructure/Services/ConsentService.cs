@@ -148,7 +148,20 @@ public sealed class ConsentService : IConsentService
         return await _db.ConsentRecords
             .Where(x => x.PatientId == patientId && x.ClinicId == clinicId)
             .OrderByDescending(x => x.GrantedAt)
-            .Select(x => Map(x))
+            .Select(x => new ConsentDto(
+                x.Id,
+                x.PatientId,
+                x.ConsentType,
+                x.IsGranted,
+                x.GrantedAt,
+                x.ExpiresAt,
+                x.WitnessUserId,
+                x.GrantedByUserId,
+                x.RevokedByUserId,
+                x.RevokedAt,
+                x.RevocationReason,
+                x.Notes,
+                x.IsGranted && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow)))
             .ToListAsync(ct);
     }
 

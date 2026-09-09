@@ -31,6 +31,26 @@ public class GlobalExceptionMiddleware
 
     private static async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        var traceId = context.TraceIdentifier;
+        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+
+        if (exception is MedClinic.Domain.Exceptions.ConsentRequiredException consentEx)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            context.Response.ContentType = "application/problem+json";
+            var problem = new
+            {
+                type = "consent_required",
+                title = $"{consentEx.ConsentType} consent is required",
+                status = StatusCodes.Status403Forbidden,
+                consentType = consentEx.ConsentType.ToString(),
+                detail = consentEx.Message,
+                traceId
+            };
+            await context.Response.WriteAsync(JsonSerializer.Serialize(problem, options));
+            return;
+        }
+
         context.Response.ContentType = "application/json";
 
         var (statusCode, message) = exception switch
@@ -44,8 +64,6 @@ public class GlobalExceptionMiddleware
 
         context.Response.StatusCode = statusCode;
 
-        var traceId = context.TraceIdentifier;
-
         var response = new ApiResponse<object>
         {
             Success = false,
@@ -53,7 +71,6 @@ public class GlobalExceptionMiddleware
             TraceId = traceId
         };
 
-        var options = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
         await context.Response.WriteAsync(JsonSerializer.Serialize(response, options));
     }
 }

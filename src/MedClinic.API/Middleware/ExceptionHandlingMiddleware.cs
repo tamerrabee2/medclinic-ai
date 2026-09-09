@@ -36,6 +36,30 @@ public class ExceptionHandlingMiddleware
             "Unhandled exception. TraceId: {TraceId}, Path: {Path}",
             traceId, context.Request.Path);
 
+        if (exception is MedClinic.Domain.Exceptions.ConsentRequiredException consentEx)
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+            context.Response.ContentType = "application/problem+json";
+
+            var problem = new
+            {
+                type = "consent_required",
+                title = $"{consentEx.ConsentType} consent is required",
+                status = (int)HttpStatusCode.Forbidden,
+                consentType = consentEx.ConsentType.ToString(),
+                detail = consentEx.Message,
+                traceId
+            };
+
+            var problemJson = JsonSerializer.Serialize(problem, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            await context.Response.WriteAsync(problemJson);
+            return;
+        }
+
         var (statusCode, message) = exception switch
         {
             UnauthorizedAccessException => (HttpStatusCode.Unauthorized, "Unauthorized."),
