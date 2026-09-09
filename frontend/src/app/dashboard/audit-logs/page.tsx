@@ -508,14 +508,16 @@ export default function AuditLogsPage() {
                 ) : (
                   filteredConsentAudits.map((r) => {
                     const isRevoke = r.eventType.toLowerCase() === 'revoked';
+                    const isHold = r.eventType.toLowerCase().includes('legalhold');
+                    const badgeStyle = isRevoke
+                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      : isHold
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      : 'bg-teal-500/10 text-teal-400 border-teal-500/20';
                     return (
                       <tr key={r.id} className="hover:bg-slate-850/50 transition">
                         <td className="p-4 font-mono font-semibold">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] border ${
-                            isRevoke
-                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                              : 'bg-teal-500/10 text-teal-400 border-teal-500/20'
-                          }`}>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] border ${badgeStyle}`}>
                             {r.eventType}
                           </span>
                           <div className="text-slate-300 text-[11px] mt-1">{r.consentType}</div>

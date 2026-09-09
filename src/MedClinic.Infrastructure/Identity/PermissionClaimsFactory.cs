@@ -64,7 +64,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.AIAssist, Permissions.AIAdmin, Permissions.AIAnalysis,
             Permissions.ReportsRead, Permissions.ReportsExport,
             Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
-            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
+            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit,
+            Permissions.PatientConsentsExport
         ],
 
         [Roles.ClinicAdmin] =
@@ -87,7 +88,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.AIAssist, Permissions.AIAnalysis,
             Permissions.ReportsRead, Permissions.ReportsExport,
             Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
-            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
+            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit,
+            Permissions.PatientConsentsExport
         ],
 
         [Roles.Doctor] =
@@ -102,7 +104,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.AIAssist, Permissions.AIAnalysis,
             Permissions.ReportsRead,
             Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
-            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
+            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit,
+            Permissions.PatientConsentsExport
         ],
 
         [Roles.Nurse] =

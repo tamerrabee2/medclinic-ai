@@ -101,8 +101,15 @@ export class ApiClient {
       return { items: filtered, totalCount: filtered.length, pageNumber: page, pageSize };
     }
 
-    const params = new URLSearchParams({ pageNumber: String(page), pageSize: String(pageSize) });
-    if (query) params.append('searchTerm', query);
+    const params = new URLSearchParams({
+      page: String(page),
+      pageNumber: String(page),
+      pageSize: String(pageSize),
+    });
+    if (query) {
+      params.append('search', query);
+      params.append('searchTerm', query);
+    }
     return this.request(`/api/v1/patients?${params.toString()}`);
   }
 

@@ -878,6 +878,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
             a => a.ConsentRecordId == consentId && a.Reason == "Judicial investigation subpoena #8891");
 
         auditEntry.Should().NotBeNull();
+        auditEntry!.EventType.Should().Be(ConsentAuditEventType.LegalHoldApplied);
         auditEntry!.Details.Should().Contain("Active legal hold applied");
     }
 
@@ -929,6 +930,184 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
         csv.Should().Contain("EventId,TimestampUtc,PatientIdentifier");
         // IP address must be masked
         csv.Should().Contain("192.168.***.***");
+    }
+
+    [Fact]
+    public async Task AuditExplorer_ExportCsv_RequiresExportPermission()
+    {
+        var (clinicAId, _, _, _, _, _, tokenReceptionistA) = await SeedConsentDataAsync();
+
+        // Receptionist lacks PatientConsents.Export permission -> 403 Forbidden
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents/export?maskPii=true");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenReceptionistA);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AuditExplorer_ExportCsv_RestrictsUnmaskedPiiToAdmins()
+    {
+        var (clinicAId, _, _, _, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        // Doctor possesses PatientConsents.Export but is not ClinicAdmin/SuperAdmin -> 403 Forbidden on maskPii=false
+        using var docReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents/export?maskPii=false");
+        docReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        docReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var docRes = await _client.SendAsync(docReq);
+        docRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // ClinicAdmin requesting maskPii=false -> 200 OK
+        using var adminScope = _factory.Services.CreateScope();
+        var jwt = adminScope.ServiceProvider.GetRequiredService<IJwtService>();
+        var db = adminScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adminUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"compliance_{Guid.NewGuid():N}@clinic.com",
+            UserName = $"compliance_{Guid.NewGuid():N}",
+            FirstName = "Chief",
+            LastName = "Compliance",
+            IsActive = true
+        };
+        db.Users.Add(adminUser);
+        db.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicAId,
+            UserId = adminUser.Id,
+            Role = Roles.ClinicAdmin,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+        var adminToken = jwt.GenerateAccessTokenWithClinic(adminUser, [Roles.ClinicAdmin], clinicAId);
+
+        using var adminReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents/export?maskPii=false");
+        adminReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        adminReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var adminRes = await _client.SendAsync(adminReq);
+        adminRes.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task AuditExplorer_ExportCsv_LogsAuditLogEntry_WithSha256()
+    {
+        var (clinicAId, _, _, _, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents/export?maskPii=true");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        res.Headers.Contains("X-Export-SHA256").Should().BeTrue();
+
+        var sha = res.Headers.GetValues("X-Export-SHA256").First();
+        sha.Should().NotBeNullOrWhiteSpace();
+
+        // Verify an AuditLog entry was written to DB
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var log = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            verifyDb.AuditLogs.IgnoreQueryFilters(),
+            l => l.ClinicId == clinicAId && l.Action == "ExportCsv" && l.EntityName == "ConsentAuditExport");
+
+        log.Should().NotBeNull();
+        log!.Description.Should().Contain(sha);
+    }
+
+    [Fact]
+    public async Task AuditExplorer_LegalHold_ReleaseGovernance_And_ExplicitEventTypes()
+    {
+        var (clinicAId, _, patientAId, _, _, _, _) = await SeedConsentDataAsync();
+
+        Guid consentId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var consent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.GeneralCare,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ConsentRecords.Add(consent);
+            await db.SaveChangesAsync();
+            consentId = consent.Id;
+        }
+
+        // Admin token
+        using var adminScope = _factory.Services.CreateScope();
+        var jwt = adminScope.ServiceProvider.GetRequiredService<IJwtService>();
+        var dbCtx = adminScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adminUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"officer_{Guid.NewGuid():N}@clinic.com",
+            UserName = $"officer_{Guid.NewGuid():N}",
+            FirstName = "Legal",
+            LastName = "Officer",
+            IsActive = true
+        };
+        dbCtx.Users.Add(adminUser);
+        dbCtx.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicAId,
+            UserId = adminUser.Id,
+            Role = Roles.ClinicAdmin,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
+        await dbCtx.SaveChangesAsync();
+        var adminToken = jwt.GenerateAccessTokenWithClinic(adminUser, [Roles.ClinicAdmin], clinicAId);
+
+        // 1. Releasing hold with empty reason must be rejected with 400 Bad Request
+        using var emptyReasonReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/audit/explorer/legal-hold");
+        emptyReasonReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        emptyReasonReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        emptyReasonReq.Content = JsonContent.Create(new
+        {
+            consentRecordId = consentId,
+            isLegalHold = false,
+            reason = ""
+        });
+
+        var emptyReasonRes = await _client.SendAsync(emptyReasonReq);
+        emptyReasonRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // 2. Releasing hold with valid reason must succeed and log LegalHoldReleased
+        using var releaseReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/audit/explorer/legal-hold");
+        releaseReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        releaseReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        releaseReq.Content = JsonContent.Create(new
+        {
+            consentRecordId = consentId,
+            isLegalHold = false,
+            reason = "Case dismissed with prejudice by court order #402"
+        });
+
+        var releaseRes = await _client.SendAsync(releaseReq);
+        releaseRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Verify explicit LegalHoldReleased event in DB
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var releaseAudit = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            verifyDb.ConsentAuditEvents.IgnoreQueryFilters(),
+            a => a.ConsentRecordId == consentId && a.Reason == "Case dismissed with prejudice by court order #402");
+
+        releaseAudit.Should().NotBeNull();
+        releaseAudit!.EventType.Should().Be(ConsentAuditEventType.LegalHoldReleased);
+        releaseAudit.Details.Should().Contain("Active legal hold released");
     }
 
     [Fact]

@@ -120,9 +120,11 @@ public class AuditExplorerController : BaseController
 
     /// <summary>
     /// Export consent audit events in CSV format with optional PII masking for compliance reporting.
+    /// Unmasked PII is restricted to ClinicAdmin and SuperAdmin roles.
+    /// Generates an immutable AuditLog record for every export operation.
     /// </summary>
     [HttpGet("consents/export")]
-    [HasPermission(Permissions.PatientConsentsAudit)]
+    [HasPermission(Permissions.PatientConsentsExport)]
     public async Task<IActionResult> ExportConsentAuditCsv(
         [FromQuery] Guid? patientId,
         [FromQuery] DateTime? from,
@@ -133,6 +135,11 @@ public class AuditExplorerController : BaseController
         if (from.HasValue && to.HasValue && from.Value > to.Value)
         {
             return BadRequest(new { message = "'from' date cannot be after 'to' date." });
+        }
+
+        if (!maskPii && !User.IsInRole(Roles.ClinicAdmin) && !User.IsInRole(Roles.SuperAdmin))
+        {
+            return StatusCode(403, ApiResponse<object>.ErrorResult("Unmasked PII export is restricted to Compliance Officers and Clinic Administrators."));
         }
 
         var clinicId = ClinicId;
@@ -182,6 +189,30 @@ public class AuditExplorerController : BaseController
         }
 
         var bytes = Encoding.UTF8.GetBytes(sb.ToString());
+        var hashBytes = System.Security.Cryptography.SHA256.HashData(bytes);
+        var hashString = Convert.ToHexString(hashBytes).ToLowerInvariant();
+
+        Response.Headers["X-Export-SHA256"] = hashString;
+
+        var auditLog = new AuditLog
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            UserId = CurrentUserId,
+            UserName = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                ?? "User",
+            EntityName = "ConsentAuditExport",
+            EntityId = Guid.NewGuid(),
+            Action = "ExportCsv",
+            Description = $"Exported {records.Count} consent audit records (maskPii: {maskPii}, SHA256: {hashString}, PatientId: {patientId}, From: {from:u}, To: {to:u})",
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            UserAgent = Request.Headers.UserAgent.ToString(),
+            CreatedAt = DateTime.UtcNow
+        };
+        _context.AuditLogs.Add(auditLog);
+        await _context.SaveChangesAsync(ct);
+
         return File(bytes, "text/csv", $"consent_audit_report_{DateTime.UtcNow:yyyyMMdd_HHmmss}.csv");
     }
 
@@ -275,9 +306,9 @@ public class AuditExplorerController : BaseController
         [FromBody] SetLegalHoldRequest request,
         CancellationToken ct)
     {
-        if (request.IsLegalHold && string.IsNullOrWhiteSpace(request.Reason))
+        if (string.IsNullOrWhiteSpace(request.Reason))
         {
-            return BadRequest(new { message = "A valid legal hold reason is mandatory when placing a hold." });
+            return BadRequest(new { message = "A valid legal hold reason is mandatory when placing or releasing a hold." });
         }
 
         var clinicId = ClinicId;
@@ -297,7 +328,9 @@ public class AuditExplorerController : BaseController
             ClinicId = clinicId,
             ConsentRecordId = record.Id,
             PatientId = record.PatientId,
-            EventType = ConsentAuditEventType.Verified,
+            EventType = request.IsLegalHold
+                ? ConsentAuditEventType.LegalHoldApplied
+                : ConsentAuditEventType.LegalHoldReleased,
             ConsentType = record.ConsentType,
             PerformedByUserId = CurrentUserId,
             IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),

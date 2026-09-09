@@ -364,16 +364,32 @@ export function PatientConsentsTab({ patientId }: { patientId: string }) {
           <div className="relative pl-6 space-y-4 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
             {auditEvents.map((ev) => {
               const isRevoke = String(ev.eventType).toLowerCase().includes('revoke') || String(ev.eventType) === '1';
+              const isHoldApplied = String(ev.eventType).toLowerCase().includes('legalholdapplied') || String(ev.eventType) === '4';
+              const isHoldReleased = String(ev.eventType).toLowerCase().includes('legalholdreleased') || String(ev.eventType) === '5';
+              const badgeColor = isRevoke
+                ? 'border-rose-500 text-rose-400'
+                : isHoldApplied
+                ? 'border-amber-500 text-amber-400'
+                : isHoldReleased
+                ? 'border-indigo-500 text-indigo-400'
+                : 'border-teal-500 text-teal-400';
+
+              const eventLabel = isHoldApplied
+                ? (isRtl ? 'تطبيق حجز قانوني (Legal Hold)' : 'Legal Hold Applied')
+                : isHoldReleased
+                ? (isRtl ? 'فك الحجز القانوني (Hold Released)' : 'Legal Hold Released')
+                : String(ev.eventType);
+
               return (
                 <div key={ev.id} className="relative group">
                   <div className={`absolute -left-6 top-1 w-4 h-4 rounded-full border-2 flex items-center justify-center bg-slate-900 ${
-                    isRevoke ? 'border-rose-500' : 'border-teal-500'
+                    badgeColor.split(' ')[0]
                   }`} />
                   <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold ${isRevoke ? 'text-rose-400' : 'text-teal-400'}`}>
-                          {String(ev.eventType)}
+                        <span className={`text-xs font-bold ${badgeColor.split(' ')[1]}`}>
+                          {eventLabel}
                         </span>
                         <span className="text-xs text-slate-300 font-medium">
                           ({String(ev.consentType)})

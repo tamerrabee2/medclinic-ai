@@ -64,4 +64,5 @@ public static class Permissions
     public const string PatientConsentsManage = "PatientConsents.Manage";
     public const string PatientConsentsRevoke = "PatientConsents.Revoke";
     public const string PatientConsentsAudit  = "PatientConsents.Audit";
+    public const string PatientConsentsExport = "PatientConsents.Export";
 }
