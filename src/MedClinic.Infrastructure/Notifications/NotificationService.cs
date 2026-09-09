@@ -1,10 +1,11 @@
 using MedClinic.Application.Common.Interfaces;
 using MedClinic.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace MedClinic.Infrastructure.Notifications;
 
-public class NotificationService : INotificationService
+public class NotificationService : INotificationService, MedClinic.Application.Interfaces.INotificationService
 {
     private readonly IApplicationDbContext _context;
     private readonly IWhatsAppProvider _whatsApp;
@@ -20,12 +21,89 @@ public class NotificationService : INotificationService
         _logger = logger;
     }
 
+    // ─── In-App Notifications (MedClinic.Application.Interfaces.INotificationService) ───
+
+    public async Task NotifyAsync(
+        Guid userId,
+        Guid clinicId,
+        string title,
+        string body,
+        string type,
+        string? entityType = null,
+        Guid? entityId = null,
+        CancellationToken ct = default)
+    {
+        var notification = new Notification
+        {
+            UserId = userId,
+            ClinicId = clinicId,
+            Title = title,
+            Body = body,
+            Type = type,
+            EntityType = entityType,
+            EntityId = entityId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Notifications.Add(notification);
+        await _context.SaveChangesAsync(ct);
+    }
+
+    public async Task NotifyRoleAsync(
+        Guid clinicId,
+        string role,
+        string title,
+        string body,
+        string type,
+        string? entityType = null,
+        Guid? entityId = null,
+        CancellationToken ct = default)
+    {
+        var userIds = await _context.ClinicMembers
+            .Where(m => m.ClinicId == clinicId && m.Role == role)
+            .Select(m => m.UserId)
+            .ToListAsync(ct);
+
+        await NotifyManyAsync(userIds, clinicId, title, body, type, entityType, entityId, ct);
+    }
+
+    public async Task NotifyManyAsync(
+        IEnumerable<Guid> userIds,
+        Guid clinicId,
+        string title,
+        string body,
+        string type,
+        string? entityType = null,
+        Guid? entityId = null,
+        CancellationToken ct = default)
+    {
+        var notifications = userIds.Select(uid => new Notification
+        {
+            UserId = uid,
+            ClinicId = clinicId,
+            Title = title,
+            Body = body,
+            Type = type,
+            EntityType = entityType,
+            EntityId = entityId,
+            CreatedAt = DateTime.UtcNow
+        }).ToList();
+
+        if (notifications.Count > 0)
+        {
+            _context.Notifications.AddRange(notifications);
+            await _context.SaveChangesAsync(ct);
+        }
+    }
+
+    // ─── Multi-Channel Notifications (MedClinic.Application.Common.Interfaces.INotificationService) ───
+
     public async Task SendAppointmentReminderAsync(Appointment appointment, CancellationToken ct = default)
     {
-        var phone = appointment.Patient?.PhoneNumber;
+        var phone = appointment.Patient?.Phone;
         if (string.IsNullOrEmpty(phone)) return;
 
-        var message = $"Reminder: You have an appointment on {appointment.AppointmentDate:dd/MM/yyyy} at {appointment.AppointmentDate:HH:mm}. Please arrive 10 minutes early.";
+        var message = $"Reminder: You have an appointment on {appointment.ScheduledAt:dd/MM/yyyy} at {appointment.ScheduledAt:HH:mm}. Please arrive 10 minutes early.";
 
         await LogAndSendAsync(appointment.ClinicId, appointment.PatientId,
             NotificationType.AppointmentReminder, NotificationChannel.WhatsApp,
@@ -34,10 +112,10 @@ public class NotificationService : INotificationService
 
     public async Task SendAppointmentConfirmationAsync(Appointment appointment, CancellationToken ct = default)
     {
-        var phone = appointment.Patient?.PhoneNumber;
+        var phone = appointment.Patient?.Phone;
         if (string.IsNullOrEmpty(phone)) return;
 
-        var message = $"Your appointment on {appointment.AppointmentDate:dd/MM/yyyy} at {appointment.AppointmentDate:HH:mm} is confirmed.";
+        var message = $"Your appointment on {appointment.ScheduledAt:dd/MM/yyyy} at {appointment.ScheduledAt:HH:mm} is confirmed.";
 
         await LogAndSendAsync(appointment.ClinicId, appointment.PatientId,
             NotificationType.AppointmentConfirmation, NotificationChannel.WhatsApp,
@@ -46,7 +124,7 @@ public class NotificationService : INotificationService
 
     public async Task SendLabResultReadyAsync(LabOrder labOrder, CancellationToken ct = default)
     {
-        var phone = labOrder.Patient?.PhoneNumber;
+        var phone = labOrder.Patient?.Phone;
         if (string.IsNullOrEmpty(phone)) return;
 
         await LogAndSendAsync(labOrder.ClinicId, labOrder.PatientId,

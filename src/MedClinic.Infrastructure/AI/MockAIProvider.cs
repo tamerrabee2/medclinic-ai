@@ -9,7 +9,7 @@ namespace MedClinic.Infrastructure.AI;
 /// Returns realistic structured responses without calling any external API.
 /// Switch to OpenAIProvider or AnthropicProvider in Production via appsettings.
 /// </summary>
-public class MockAIProvider : IAIProvider
+public partial class MockAIProvider : IAIProvider
 {
     private readonly ILogger<MockAIProvider> _logger;
     public MockAIProvider(ILogger<MockAIProvider> logger) => _logger = logger;

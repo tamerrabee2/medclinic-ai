@@ -25,6 +25,7 @@ import {
   Globe
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const QUICK_NOTIFICATIONS = [
   {
@@ -62,6 +63,7 @@ const QUICK_NOTIFICATIONS = [
 export const Navbar: React.FC = () => {
   const router = useRouter();
   const { user, clinicId } = useAuth();
+  const { language, toggleLanguage, t } = useLanguage();
 
   // Notification State
   const [showNotifications, setShowNotifications] = useState(false);
@@ -99,26 +101,29 @@ export const Navbar: React.FC = () => {
     setApiPingStatus('pinging');
     const start = performance.now();
     try {
-      await fetch('/api/v1/health', { cache: 'no-store' });
-      const elapsed = Math.round(performance.now() - start);
-      setLatencyMs(elapsed > 0 ? elapsed : 18);
+      const res = await fetch('http://localhost:5000/api/v1/health', {
+        method: 'GET',
+        headers: { 'X-Clinic-Id': clinicId || 'clinic-1' }
+      });
+      const end = performance.now();
+      setLatencyMs(Math.round(end - start));
       setApiPingStatus('online');
     } catch {
-      // Fallback
-      setLatencyMs(26);
+      const end = performance.now();
+      setLatencyMs(Math.round(end - start));
       setApiPingStatus('online');
     }
   };
 
   return (
-    <header className="h-16 border-b border-slate-800/80 bg-slate-950/40 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-30">
-      {/* Search Bar */}
-      <div className="flex items-center gap-3 w-96">
-        <div className="relative w-full">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+    <header className="h-16 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30">
+      {/* Search Input Bar */}
+      <div className="flex-1 max-w-md">
+        <div className="relative">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search patients by name, national ID, phone... (Ctrl + K)"
+            placeholder={t.searchPlaceholder}
             className="w-full pl-9 pr-4 py-1.5 bg-slate-900/60 border border-slate-800 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500/50 transition"
           />
         </div>
@@ -126,6 +131,16 @@ export const Navbar: React.FC = () => {
 
       {/* Action Badges & Notification Center */}
       <div className="flex items-center gap-3">
+        {/* 0. Interactive Language Switcher Toggle */}
+        <button
+          onClick={toggleLanguage}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-850 border border-slate-700/60 text-slate-200 hover:text-white text-xs font-semibold transition cursor-pointer shadow-sm hover:border-sky-500/50"
+          title={language === 'en' ? 'التحويل إلى اللغة العربية (RTL)' : 'Switch to English (LTR)'}
+        >
+          <Globe className="w-3.5 h-3.5 text-sky-400" />
+          <span>{language === 'en' ? '🇸🇦 العربية' : '🇺🇸 English'}</span>
+        </button>
+
         {/* 1. Interactive API Health Button */}
         <button
           onClick={() => {
@@ -136,7 +151,7 @@ export const Navbar: React.FC = () => {
           title="Click to view Backend API & System Health"
         >
           <Activity className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
-          <span>API v1 Online (.NET 10)</span>
+          <span>{t.apiOnline}</span>
         </button>
 
         {/* 2. Interactive AI Engine Button */}
@@ -146,7 +161,7 @@ export const Navbar: React.FC = () => {
           title="Click to view AI Gateway & Provider Status"
         >
           <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-          <span>AI Engine Active</span>
+          <span>{t.aiEngineActive}</span>
         </button>
 
         {/* 3. Notifications Popover Toggle */}

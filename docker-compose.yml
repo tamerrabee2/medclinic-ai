@@ -68,7 +68,19 @@ services:
     depends_on:
       - backend
 
+  local-ai:
+    image: ollama/ollama:latest
+    container_name: medclinic-local-ai
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
   storage_data:
+  ollama_models:

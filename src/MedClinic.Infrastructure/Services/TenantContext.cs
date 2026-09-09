@@ -1,10 +1,11 @@
 using MedClinic.Application.Interfaces;
+using MedClinic.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 
 namespace MedClinic.Infrastructure.Services;
 
-public class TenantContext : ITenantContext
+public class TenantContext : ITenantContext, ICurrentUserService
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
 
@@ -56,6 +57,8 @@ public class TenantContext : ITenantContext
         _httpContextAccessor.HttpContext?.User
             .FindAll(ClaimTypes.Role)
             .Select(c => c.Value) ?? [];
+
+    public string? Role => Roles.FirstOrDefault();
 
     public bool IsInRole(string role) =>
         _httpContextAccessor.HttpContext?.User.IsInRole(role) == true;

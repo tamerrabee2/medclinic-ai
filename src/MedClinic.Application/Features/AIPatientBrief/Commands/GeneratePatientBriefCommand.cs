@@ -38,16 +38,16 @@ public class GeneratePatientBriefCommandHandler : IRequestHandler<GeneratePatien
     public async Task<Result<PatientBriefDto>> Handle(GeneratePatientBriefCommand request, CancellationToken cancellationToken)
     {
         var patient = await _context.Patients
-            .Include(p => p.MedicalRecord)
-            .Include(p => p.Visits.OrderByDescending(v => v.VisitDate).Take(5))
+            .Include(p => p.Visits)
             .FirstOrDefaultAsync(p => p.Id == request.PatientId
                 && p.ClinicId == _currentUser.ClinicId, cancellationToken);
 
         if (patient is null) return Result<PatientBriefDto>.Failure("Patient not found.");
 
         var recentLabs = await _context.LabResults
-            .Where(l => l.PatientId == request.PatientId)
-            .OrderByDescending(l => l.ResultDate)
+            .Include(l => l.LabOrder)
+            .Where(l => l.LabOrder.PatientId == request.PatientId)
+            .OrderByDescending(l => l.ReportedAt)
             .Take(3)
             .ToListAsync(cancellationToken);
 

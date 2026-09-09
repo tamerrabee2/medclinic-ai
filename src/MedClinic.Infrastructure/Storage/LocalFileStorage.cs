@@ -1,4 +1,5 @@
 using MedClinic.Application.Interfaces;
+using MedClinic.Application.Common.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 
@@ -8,7 +9,7 @@ namespace MedClinic.Infrastructure.Storage;
 /// Local disk storage for development.
 /// Replace with S3 / Azure Blob in production.
 /// </summary>
-public class LocalFileStorage : IFileStorage
+public class LocalFileStorage : IFileStorage, IFileStorageService
 {
     private readonly string _basePath;
     private readonly string _baseUrl;
@@ -18,6 +19,13 @@ public class LocalFileStorage : IFileStorage
         _basePath = configuration["Storage:LocalPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "uploads");
         _baseUrl  = configuration["Storage:BaseUrl"]   ?? "http://localhost:5000/uploads";
         Directory.CreateDirectory(_basePath);
+    }
+
+    public async Task<string> UploadAsync(Stream stream, string fileName, string contentType, string folder, CancellationToken cancellationToken = default)
+    {
+        var uniqueName = $"{Guid.NewGuid()}_{Path.GetFileName(fileName)}";
+        var path = Path.Combine(folder, uniqueName);
+        return await UploadAsync(path, stream, contentType, cancellationToken);
     }
 
     public async Task<string> UploadAsync(string path, Stream stream, string contentType, CancellationToken ct = default)

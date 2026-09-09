@@ -10,7 +10,9 @@ using System.Security.Claims;
 
 namespace MedClinic.Infrastructure.Persistence;
 
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>, IApplicationDbContext
+public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>,
+    MedClinic.Application.Interfaces.IApplicationDbContext,
+    MedClinic.Application.Common.Interfaces.IApplicationDbContext
 {
     private readonly IHttpContextAccessor? _httpContextAccessor;
     private readonly ITenantContext? _tenantContext;

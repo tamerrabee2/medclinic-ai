@@ -56,13 +56,13 @@ public class GetReportDataQueryHandler : IRequestHandler<GetReportDataQuery, Res
             .CountAsync(p => p.ClinicId == clinicId && p.CreatedAt >= from && p.CreatedAt <= to, cancellationToken);
 
         var totalAppointments = await _context.Appointments
-            .CountAsync(a => a.ClinicId == clinicId && a.AppointmentDate >= from && a.AppointmentDate <= to, cancellationToken);
+            .CountAsync(a => a.ClinicId == clinicId && a.ScheduledAt >= from && a.ScheduledAt <= to, cancellationToken);
 
         var completedVisits = await _context.Visits
             .CountAsync(v => v.ClinicId == clinicId && v.VisitDate >= from && v.VisitDate <= to, cancellationToken);
 
         var revenueData = await _context.Invoices
-            .Where(i => i.ClinicId == clinicId && i.IssuedDate >= from && i.IssuedDate <= to)
+            .Where(i => i.ClinicId == clinicId && i.IssuedAt >= from && i.IssuedAt <= to)
             .GroupBy(i => 1)
             .Select(g => new
             {
@@ -72,7 +72,7 @@ public class GetReportDataQueryHandler : IRequestHandler<GetReportDataQuery, Res
             .FirstOrDefaultAsync(cancellationToken);
 
         var totalLabs = await _context.LabOrders
-            .CountAsync(l => l.ClinicId == clinicId && l.OrderDate >= from && l.OrderDate <= to, cancellationToken);
+            .CountAsync(l => l.ClinicId == clinicId && l.OrderedAt >= from && l.OrderedAt <= to, cancellationToken);
 
         var totalImaging = await _context.RadiologyStudies
             .CountAsync(r => r.ClinicId == clinicId && r.StudyDate >= from && r.StudyDate <= to, cancellationToken);
@@ -84,8 +84,8 @@ public class GetReportDataQueryHandler : IRequestHandler<GetReportDataQuery, Res
             .CountAsync(f => f.ClinicId == clinicId && !f.DoctorApproved && !f.DoctorDismissed, cancellationToken);
 
         var dailyStats = await _context.Appointments
-            .Where(a => a.ClinicId == clinicId && a.AppointmentDate >= from && a.AppointmentDate <= to)
-            .GroupBy(a => a.AppointmentDate.Date)
+            .Where(a => a.ClinicId == clinicId && a.ScheduledAt >= from && a.ScheduledAt <= to)
+            .GroupBy(a => a.ScheduledAt.Date)
             .Select(g => new DailyStatDto(g.Key, g.Count(), 0, 0))
             .OrderBy(d => d.Date)
             .ToListAsync(cancellationToken);

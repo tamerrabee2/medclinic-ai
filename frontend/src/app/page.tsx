@@ -17,16 +17,50 @@ export default function HomePage() {
   }, [isAuthenticated, isLoading, router]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen flex flex-col justify-between selection:bg-sky-500 selection:text-white relative overflow-hidden">
+      {/* Public Top Navbar */}
+      <header className="h-16 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md px-6 sm:px-12 flex items-center justify-between sticky top-0 z-40">
+        <Link href="/" className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-sky-500/20">
+            <Stethoscope className="w-5 h-5" />
+          </div>
+          <span className="font-bold text-lg text-white">
+            MedClinic <span className="text-sky-400 font-mono text-xs px-1.5 py-0.5 bg-sky-500/10 rounded">AI</span>
+          </span>
+        </Link>
+
+        <nav className="hidden md:flex items-center gap-6 text-sm text-slate-300 font-medium">
+          <Link href="/features" className="hover:text-white transition">Features</Link>
+          <Link href="/pricing" className="hover:text-white transition">Pricing</Link>
+          <Link href="/security" className="hover:text-white transition">Security & Trust</Link>
+        </nav>
+
+        <div className="flex items-center gap-3">
+          <Link
+            href="/login"
+            className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-900 transition"
+          >
+            Sign In
+          </Link>
+          <Link
+            href="/register"
+            className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs transition shadow-lg shadow-sky-500/20"
+          >
+            Get Started
+          </Link>
+        </div>
+      </header>
+
       {/* Background Decorative Glows */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-sky-500/20 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-4xl w-full text-center space-y-8 relative z-10">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel border-sky-500/30 text-sky-400 text-sm font-medium animate-pulse">
-          <Sparkles className="w-4 h-4 text-sky-400" />
-          <span>Next-Gen Clinical AI Platform &middot; .NET 10 &amp; React 19</span>
-        </div>
+      <main className="flex-1 flex items-center justify-center p-6">
+        <div className="max-w-4xl w-full text-center space-y-8 relative z-10 py-12">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-panel border-sky-500/30 text-sky-400 text-sm font-medium animate-pulse">
+            <Sparkles className="w-4 h-4 text-sky-400" />
+            <span>Next-Gen Clinical AI Platform &middot; .NET 10 &amp; React 19</span>
+          </div>
 
         <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight bg-gradient-to-r from-sky-400 via-teal-300 to-indigo-400 bg-clip-text text-transparent">
           MedClinic AI
@@ -87,6 +121,8 @@ export default function HomePage() {
           </div>
         </div>
       </div>
-    </div>
-  );
+    </main>
+  </div>
+);
 }
+

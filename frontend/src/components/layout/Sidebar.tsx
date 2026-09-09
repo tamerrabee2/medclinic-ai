@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { useLanguage } from '@/lib/i18n/LanguageContext';
 import {
   LayoutDashboard,
   Users,
@@ -27,44 +28,45 @@ import {
   UserCheck
 } from 'lucide-react';
 
-const NAV_GROUPS = [
-  {
-    title: 'Clinical Practice',
-    items: [
-      { href: '/dashboard', label: 'Overview', icon: LayoutDashboard },
-      { href: '/dashboard/patients', label: 'Patients Registry', icon: Users },
-      { href: '/dashboard/visits', label: 'Visits & Encounters', icon: Stethoscope },
-      { href: '/dashboard/appointments', label: 'Appointments Calendar', icon: CalendarDays },
-      { href: '/dashboard/canvas', label: 'Body Map & Canvas', icon: Activity },
-      { href: '/dashboard/dental', label: 'Dental Chart (FDI)', icon: Smile },
-    ]
-  },
-  {
-    title: 'AI & Diagnostics',
-    items: [
-      { href: '/dashboard/ai-assistant', label: 'Clinical AI Copilot', icon: Sparkles, badge: 'AI' },
-      { href: '/dashboard/lab-analyzer', label: 'AI Lab Analyzer', icon: TestTubes, badge: 'Pipeline' },
-      { href: '/dashboard/laboratory', label: 'Lab Orders Desk', icon: FlaskConical },
-      { href: '/dashboard/radiology', label: 'Radiology PACS', icon: ScanLine, badge: 'Vision' },
-      { href: '/dashboard/prescriptions', label: 'Prescriptions Studio', icon: Pill },
-    ]
-  },
-  {
-    title: 'Operations & Management',
-    items: [
-      { href: '/dashboard/billing', label: 'Billing & Claims', icon: ReceiptText },
-      { href: '/dashboard/analytics', label: 'Executive Analytics', icon: TrendingUp },
-      { href: '/dashboard/users', label: 'User Accounts & IAM', icon: UserCheck },
-      { href: '/dashboard/staff', label: 'Clinic Staff & RBAC', icon: Users },
-      { href: '/dashboard/audit-logs', label: 'Audit & Compliance', icon: ShieldAlert },
-      { href: '/dashboard/notifications', label: 'Alerts & Notifications', icon: Bell, badge: '3' },
-    ]
-  }
-];
-
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
   const { user, logout, clinicId } = useAuth();
+  const { t } = useLanguage();
+
+  const NAV_GROUPS = [
+    {
+      title: t.clinicalPractice,
+      items: [
+        { href: '/dashboard', label: t.dashboard, icon: LayoutDashboard },
+        { href: '/dashboard/patients', label: t.patients, icon: Users },
+        { href: '/dashboard/visits', label: t.visits, icon: Stethoscope },
+        { href: '/dashboard/appointments', label: t.appointments, icon: CalendarDays },
+        { href: '/dashboard/canvas', label: t.canvas, icon: Activity },
+        { href: '/dashboard/dental', label: t.dentalChart, icon: Smile },
+      ]
+    },
+    {
+      title: t.aiAndDiagnostics,
+      items: [
+        { href: '/dashboard/ai-assistant', label: t.aiAssistant, icon: Sparkles, badge: 'AI' },
+        { href: '/dashboard/lab-analyzer', label: t.aiLabAnalyzer, icon: TestTubes, badge: 'Pipeline' },
+        { href: '/dashboard/laboratory', label: t.labOrdersDesk, icon: FlaskConical },
+        { href: '/dashboard/radiology', label: t.radiologyPACS, icon: ScanLine, badge: 'Vision' },
+        { href: '/dashboard/prescriptions', label: t.prescriptions, icon: Pill },
+      ]
+    },
+    {
+      title: t.operationsAndManagement,
+      items: [
+        { href: '/dashboard/billing', label: t.billing, icon: ReceiptText },
+        { href: '/dashboard/analytics', label: t.analytics, icon: TrendingUp },
+        { href: '/dashboard/users', label: t.userAccounts, icon: UserCheck },
+        { href: '/dashboard/staff', label: t.clinicStaff, icon: Users },
+        { href: '/dashboard/audit-logs', label: t.auditLogs, icon: ShieldAlert },
+        { href: '/dashboard/notifications', label: t.notifications, icon: Bell, badge: '3' },
+      ]
+    }
+  ];
 
   return (
     <aside className="w-64 border-r border-slate-800/80 bg-slate-950/80 backdrop-blur-xl flex flex-col justify-between h-screen sticky top-0 shrink-0 select-none">

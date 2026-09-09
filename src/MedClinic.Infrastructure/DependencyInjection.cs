@@ -16,7 +16,7 @@ using System.Text;
 
 namespace MedClinic.Infrastructure;
 
-public static class DependencyInjection
+public static partial class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
@@ -30,6 +30,8 @@ public static class DependencyInjection
             ));
 
         services.AddScoped<IApplicationDbContext>(provider =>
+            provider.GetRequiredService<ApplicationDbContext>());
+        services.AddScoped<MedClinic.Application.Common.Interfaces.IApplicationDbContext>(provider =>
             provider.GetRequiredService<ApplicationDbContext>());
 
         // Identity
@@ -76,17 +78,20 @@ public static class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IAuditService, AuditService>();
-        services.AddScoped<ITenantContext, TenantContext>();
-        services.AddScoped<INotificationService, MedClinic.Infrastructure.Notifications.NotificationService>();
+        services.AddScoped<TenantContext>();
+        services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddScoped<MedClinic.Application.Common.Interfaces.ICurrentUserService>(sp => sp.GetRequiredService<TenantContext>());
+        services.AddScoped<MedClinic.Application.Common.Interfaces.IWhatsAppProvider, MedClinic.Infrastructure.Notifications.MockWhatsAppProvider>();
+        services.AddScoped<MedClinic.Infrastructure.Notifications.NotificationService>();
+        services.AddScoped<MedClinic.Application.Interfaces.INotificationService>(sp => sp.GetRequiredService<MedClinic.Infrastructure.Notifications.NotificationService>());
+        services.AddScoped<MedClinic.Application.Common.Interfaces.INotificationService>(sp => sp.GetRequiredService<MedClinic.Infrastructure.Notifications.NotificationService>());
         services.AddScoped<MedClinic.Infrastructure.Billing.InvoiceStatusEngine>();
         services.AddScoped<MedClinic.Infrastructure.Persistence.Seeder.DatabaseSeeder>();
 
         // File Storage
-        var storageProvider = configuration["Storage:Provider"] ?? "Local";
-        if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
-            services.AddScoped<IFileStorage, LocalFileStorage>(); // fallback until S3 is configured
-        else
-            services.AddScoped<IFileStorage, LocalFileStorage>();
+        services.AddScoped<LocalFileStorage>();
+        services.AddScoped<IFileStorage>(sp => sp.GetRequiredService<LocalFileStorage>());
+        services.AddScoped<MedClinic.Application.Common.Interfaces.IFileStorageService>(sp => sp.GetRequiredService<LocalFileStorage>());
 
         // AI Provider
         var aiProvider = configuration["AI:Provider"] ?? "Mock";
@@ -98,6 +103,9 @@ public static class DependencyInjection
             services.AddScoped<IAIProvider, LocalAIProvider>();
         else
             services.AddScoped<IAIProvider, MockAIProvider>();
+
+        // Caching
+        services.AddDistributedMemoryCache();
 
         // Background Jobs
         services.AddHostedService<MedClinic.Infrastructure.BackgroundJobs.OverdueInvoiceJob>();

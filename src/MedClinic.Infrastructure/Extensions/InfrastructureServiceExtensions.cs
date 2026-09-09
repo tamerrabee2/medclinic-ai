@@ -13,7 +13,10 @@ public static class InfrastructureServiceExtensions
     public static IServiceCollection AddInfrastructureServices(this IServiceCollection services)
     {
         // ── Core Services ──
-        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<MedClinic.Application.Common.Interfaces.IWhatsAppProvider, MockWhatsAppProvider>();
+        services.AddScoped<NotificationService>();
+        services.AddScoped<MedClinic.Application.Interfaces.INotificationService>(sp => sp.GetRequiredService<NotificationService>());
+        services.AddScoped<MedClinic.Application.Common.Interfaces.INotificationService>(sp => sp.GetRequiredService<NotificationService>());
         services.AddScoped<IAuditService,        AuditService>();
         services.AddScoped<IFileStorage,         LocalFileStorage>();
         services.AddScoped<InvoiceStatusEngine>();

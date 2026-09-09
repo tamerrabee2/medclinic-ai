@@ -25,4 +25,14 @@ public partial class ApplicationDbContext
     // ─── Patient Portal ────────────────────────────────────────────────────────
     public DbSet<PatientPortalAccess> PatientPortalAccesses => Set<PatientPortalAccess>();
     public DbSet<PatientPortalMessage> PatientPortalMessages => Set<PatientPortalMessage>();
+
+    // ─── Advanced Intelligence & Clinical ──────────────────────────────────────
+    public DbSet<VoiceNote> VoiceNotes => Set<VoiceNote>();
+    public DbSet<DentalChart> DentalCharts => Set<DentalChart>();
+    public DbSet<ToothRecord> ToothRecords => Set<ToothRecord>();
+    public DbSet<PatientBrief> PatientBriefs => Set<PatientBrief>();
+    public DbSet<ClinicalTimelineEvent> ClinicalTimelineEvents => Set<ClinicalTimelineEvent>();
+    public DbSet<FollowUpIntelligence> FollowUpIntelligences => Set<FollowUpIntelligence>();
+    public DbSet<ClinicReport> ClinicReports => Set<ClinicReport>();
+    public DbSet<NotificationLog> NotificationLogs => Set<NotificationLog>();
 }

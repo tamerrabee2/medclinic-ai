@@ -40,8 +40,7 @@ public class GenerateFollowUpSuggestionsCommandHandler
         GenerateFollowUpSuggestionsCommand request, CancellationToken cancellationToken)
     {
         var patient = await _context.Patients
-            .Include(p => p.MedicalRecord)
-            .Include(p => p.Visits.OrderByDescending(v => v.VisitDate).Take(3))
+            .Include(p => p.Visits)
             .FirstOrDefaultAsync(p => p.Id == request.PatientId
                 && p.ClinicId == _currentUser.ClinicId, cancellationToken);
 

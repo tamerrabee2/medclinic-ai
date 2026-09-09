@@ -23,7 +23,7 @@ public sealed class RuleBasedClinicalDecisionSupportService : IClinicalDecisionS
             ["polyuria"] = new("Diabetes mellitus", 0.64m, "Polyuria can be associated with hyperglycemia among other etiologies.", new[] { "Polyuria" }, new[] { "Check point-of-care glucose and HbA1c as clinically appropriate", "Assess hydration and ketone risk when symptomatic" })
         };
 
-    private static readonly IReadOnlyCollection<InteractionRule> InteractionRules = new[]
+    private static readonly IReadOnlyCollection<InteractionRule> InteractionRules = new InteractionRule[]
     {
         new("warfarin", "ibuprofen", InteractionSeverity.Major, "Increased bleeding risk due to anticoagulation plus NSAID-related platelet and gastrointestinal effects.", "Avoid when possible; if a clinician determines co-use is necessary, use the lowest effective exposure and monitor for bleeding and anticoagulation status per protocol.", "Curated Phase 8 baseline rule"),
         new("warfarin", "aspirin", InteractionSeverity.Major, "Increased bleeding risk from combined anticoagulant and antiplatelet effects.", "Do not start, stop, or modify therapy based on this alert alone; require prescriber review and documented indication.", "Curated Phase 8 baseline rule"),
