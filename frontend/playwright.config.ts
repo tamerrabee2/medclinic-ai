@@ -15,13 +15,13 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'], channel: 'chrome' },
+      use: { ...devices['Desktop Chrome'] },
     },
   ],
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
 });
