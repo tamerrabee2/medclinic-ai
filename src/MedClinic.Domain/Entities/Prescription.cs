@@ -12,6 +12,7 @@ public class Prescription : TenantEntity
     public string? DiagnosisSummary { get; set; }
     public string? Notes { get; set; }
     public bool IsSigned { get; set; } = false;
+    public string Status { get; set; } = "Active";
     public string? PdfUrl { get; set; }
 
     public Patient Patient { get; set; } = null!;

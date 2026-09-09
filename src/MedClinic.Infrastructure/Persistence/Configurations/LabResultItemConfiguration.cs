@@ -10,7 +10,7 @@ public class LabResultItemConfiguration : IEntityTypeConfiguration<LabResultItem
     {
         builder.HasKey(i => i.Id);
 
-        builder.Property(i => i.TestName)
+        builder.Property(i => i.TestParameter)
             .IsRequired()
             .HasMaxLength(200);
 
@@ -23,10 +23,12 @@ public class LabResultItemConfiguration : IEntityTypeConfiguration<LabResultItem
         builder.Property(i => i.ReferenceRange)
             .HasMaxLength(200);
 
-        builder.Property(i => i.Status)
-            .HasMaxLength(50);
-
         builder.Property(i => i.Notes)
             .HasMaxLength(500);
+
+        builder.HasOne(i => i.LabResult)
+            .WithMany(lr => lr.Items)
+            .HasForeignKey(i => i.LabResultId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

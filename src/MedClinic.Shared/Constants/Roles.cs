@@ -11,17 +11,23 @@ public static class Roles
     public const string Radiologist   = "Radiologist";
     public const string Pharmacist    = "Pharmacist";
     public const string Accountant    = "Accountant";
+    public const string Patient       = "Patient";
 
     public static readonly IReadOnlyList<string> All =
     [
         SuperAdmin, ClinicAdmin, Doctor, Nurse,
         Receptionist, LabTechnician, Radiologist,
-        Pharmacist, Accountant
+        Pharmacist, Accountant, Patient
     ];
 
     public static readonly IReadOnlyList<string> ClinicalRoles =
     [
         Doctor, Nurse, LabTechnician, Radiologist
+    ];
+
+    public static readonly IReadOnlyList<string> ClinicalStaff =
+    [
+        ClinicAdmin, Doctor, Nurse, Receptionist, LabTechnician, Radiologist, Pharmacist, Accountant
     ];
 
     public static readonly IReadOnlyList<string> AdminRoles =

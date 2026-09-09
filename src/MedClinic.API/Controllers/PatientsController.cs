@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Common;
 using MedClinic.Shared.Constants;
@@ -48,8 +49,8 @@ public class PatientsController : BaseController
                 (p.Phone != null && p.Phone.Contains(search)) ||
                 (p.NationalId != null && p.NationalId.Contains(search)));
 
-        if (!string.IsNullOrWhiteSpace(gender))
-            query = query.Where(p => p.Gender == gender);
+        if (!string.IsNullOrWhiteSpace(gender) && Enum.TryParse<Gender>(gender, true, out var gEnum))
+            query = query.Where(p => p.Gender == gEnum);
 
         var total = await query.CountAsync(ct);
         var patients = await query
@@ -99,18 +100,26 @@ public class PatientsController : BaseController
     public async Task<IActionResult> Create([FromBody] CreatePatientRequest request, CancellationToken ct)
     {
         var clinicId = ClinicId;
+        Gender genderEnum = Gender.Male;
+        if (!string.IsNullOrEmpty(request.Gender) && Enum.TryParse<Gender>(request.Gender, true, out var parsedGender))
+            genderEnum = parsedGender;
+
+        BloodType bloodTypeEnum = BloodType.Unknown;
+        if (!string.IsNullOrEmpty(request.BloodType) && Enum.TryParse<BloodType>(request.BloodType, true, out var parsedBlood))
+            bloodTypeEnum = parsedBlood;
+
         var patient = new Patient
         {
             ClinicId = clinicId,
             FirstName = request.FirstName,
             LastName = request.LastName,
-            DateOfBirth = request.DateOfBirth,
-            Gender = request.Gender,
+            DateOfBirth = request.DateOfBirth ?? DateTime.UtcNow.AddYears(-30),
+            Gender = genderEnum,
             Phone = request.Phone,
             Email = request.Email,
             Address = request.Address,
             NationalId = request.NationalId,
-            BloodType = request.BloodType,
+            BloodType = bloodTypeEnum,
             Allergies = request.Allergies,
             ChronicConditions = request.ChronicConditions,
             Notes = request.Notes,

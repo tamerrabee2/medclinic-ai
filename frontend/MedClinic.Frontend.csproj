@@ -1,0 +1,94 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <PackageId>MedClinic.Frontend</PackageId>
+    <Version>1.0.0</Version>
+    <Description>MedClinic AI Next.js 15 Clinical Frontend Portal</Description>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <DefaultItemExcludes>$(DefaultItemExcludes);node_modules\**;.next\**;out\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <!-- Explicit Directory Registrations -->
+  <ItemGroup>
+    <Folder Include="src\" />
+    <Folder Include="src\app\" />
+    <Folder Include="src\app\login\" />
+    <Folder Include="src\app\dashboard\" />
+    <Folder Include="src\app\dashboard\patients\" />
+    <Folder Include="src\app\dashboard\patients\[id]\" />
+    <Folder Include="src\app\dashboard\appointments\" />
+    <Folder Include="src\app\dashboard\canvas\" />
+    <Folder Include="src\app\dashboard\dental\" />
+    <Folder Include="src\app\dashboard\ai-assistant\" />
+    <Folder Include="src\app\dashboard\lab-analyzer\" />
+    <Folder Include="src\app\dashboard\radiology\" />
+    <Folder Include="src\app\dashboard\prescriptions\" />
+    <Folder Include="src\app\dashboard\billing\" />
+    <Folder Include="src\app\dashboard\notifications\" />
+    <Folder Include="src\app\dashboard\visits\" />
+    <Folder Include="src\app\dashboard\analytics\" />
+    <Folder Include="src\app\dashboard\staff\" />
+    <Folder Include="src\app\dashboard\users\" />
+    <Folder Include="src\app\dashboard\laboratory\" />
+    <Folder Include="src\app\dashboard\audit-logs\" />
+    <Folder Include="src\components\" />
+    <Folder Include="src\components\layout\" />
+    <Folder Include="src\lib\" />
+    <Folder Include="public\" />
+  </ItemGroup>
+
+  <!-- Explicit Screen & Page File Registrations -->
+  <ItemGroup>
+    <!-- Authentication Screen -->
+    <Content Include="src\app\login\page.tsx" />
+
+    <!-- Clinical Dashboard Screens -->
+    <Content Include="src\app\dashboard\layout.tsx" />
+    <Content Include="src\app\dashboard\page.tsx" />
+    <Content Include="src\app\dashboard\patients\page.tsx" />
+    <Content Include="src\app\dashboard\patients\[id]\page.tsx" />
+    <Content Include="src\app\dashboard\visits\page.tsx" />
+    <Content Include="src\app\dashboard\appointments\page.tsx" />
+    <Content Include="src\app\dashboard\canvas\page.tsx" />
+    <Content Include="src\app\dashboard\dental\page.tsx" />
+    <Content Include="src\app\dashboard\ai-assistant\page.tsx" />
+    <Content Include="src\app\dashboard\lab-analyzer\page.tsx" />
+    <Content Include="src\app\dashboard\laboratory\page.tsx" />
+    <Content Include="src\app\dashboard\radiology\page.tsx" />
+    <Content Include="src\app\dashboard\prescriptions\page.tsx" />
+    <Content Include="src\app\dashboard\billing\page.tsx" />
+    <Content Include="src\app\dashboard\analytics\page.tsx" />
+    <Content Include="src\app\dashboard\users\page.tsx" />
+    <Content Include="src\app\dashboard\staff\page.tsx" />
+    <Content Include="src\app\dashboard\audit-logs\page.tsx" />
+    <Content Include="src\app\dashboard\notifications\page.tsx" />
+
+    <!-- Root App Files -->
+    <Content Include="src\app\layout.tsx" />
+    <Content Include="src\app\page.tsx" />
+    <Content Include="src\app\globals.css" />
+
+    <!-- Layout Components -->
+    <Content Include="src\components\layout\Sidebar.tsx" />
+    <Content Include="src\components\layout\Navbar.tsx" />
+    <Content Include="src\components\layout\CommandPalette.tsx" />
+
+    <!-- Services & State Providers -->
+    <Content Include="src\lib\api.ts" />
+    <Content Include="src\lib\auth.tsx" />
+    <Content Include="src\lib\i18n.tsx" />
+
+    <!-- Configurations & Build Specs -->
+    <Content Include="package.json" />
+    <Content Include="tsconfig.json" />
+    <Content Include="next.config.js" />
+    <Content Include="tailwind.config.js" />
+    <Content Include="postcss.config.js" />
+    <Content Include="Dockerfile" />
+    <None Include="**/*" Exclude="node_modules\**;.next\**;out\**;bin\**;obj\**" />
+  </ItemGroup>
+
+</Project>

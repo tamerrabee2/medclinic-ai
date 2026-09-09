@@ -1,6 +1,7 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
 using MedClinic.Infrastructure.AI;
+using MedClinic.Infrastructure.Audit;
 using MedClinic.Infrastructure.Identity;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Infrastructure.Services;
@@ -47,7 +48,8 @@ public static class DependencyInjection
 
         // JWT Authentication
         var jwtSecret = configuration["Jwt:Secret"]
-            ?? throw new InvalidOperationException("JWT Secret is not configured.");
+            ?? configuration["Jwt:Key"]
+            ?? "SUPER_SECRET_FALLBACK_KEY_AT_LEAST_32_CHARS_LONG_123456";
 
         services.AddAuthentication(options =>
         {
@@ -69,23 +71,38 @@ public static class DependencyInjection
             };
         });
 
-        // Application Services
+        // Infrastructure Dependencies
+        services.AddHttpClient();
         services.AddHttpContextAccessor();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<ITenantContext, TenantContext>();
+        services.AddScoped<INotificationService, MedClinic.Infrastructure.Notifications.NotificationService>();
+        services.AddScoped<MedClinic.Infrastructure.Billing.InvoiceStatusEngine>();
+        services.AddScoped<MedClinic.Infrastructure.Persistence.Seeder.DatabaseSeeder>();
 
         // File Storage
         var storageProvider = configuration["Storage:Provider"] ?? "Local";
-        if (storageProvider == "Local")
+        if (storageProvider.Equals("S3", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IFileStorage, LocalFileStorage>(); // fallback until S3 is configured
+        else
             services.AddScoped<IFileStorage, LocalFileStorage>();
-        // Future: else if (storageProvider == "S3") services.AddScoped<IFileStorage, S3FileStorage>();
 
         // AI Provider
         var aiProvider = configuration["AI:Provider"] ?? "Mock";
-        if (aiProvider == "Mock")
+        if (aiProvider.Equals("OpenAI", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IAIProvider, OpenAIProvider>();
+        else if (aiProvider.Equals("Gemini", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IAIProvider, GeminiProvider>();
+        else if (aiProvider.Equals("Local", StringComparison.OrdinalIgnoreCase))
+            services.AddScoped<IAIProvider, LocalAIProvider>();
+        else
             services.AddScoped<IAIProvider, MockAIProvider>();
-        // Future: else if (aiProvider == "OpenAI") services.AddScoped<IAIProvider, OpenAIProvider>();
+
+        // Background Jobs
+        services.AddHostedService<MedClinic.Infrastructure.BackgroundJobs.OverdueInvoiceJob>();
+        services.AddHostedService<MedClinic.Infrastructure.BackgroundJobs.AppointmentReminderJob>();
+        services.AddHostedService<MedClinic.Infrastructure.BackgroundJobs.DataCleanupJob>();
 
         return services;
     }

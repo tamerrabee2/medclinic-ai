@@ -51,8 +51,9 @@ public static class Permissions
     public const string ClinicsManage = "Clinics.Manage";
 
     // ── AI ────────────────────────────────────────────────────────────────
-    public const string AIAssist = "AI.Assist";
-    public const string AIAdmin  = "AI.Admin";
+    public const string AIAssist   = "AI.Assist";
+    public const string AIAdmin    = "AI.Admin";
+    public const string AIAnalysis = "AI.Analysis";
 
     // ── Reports ───────────────────────────────────────────────────────────
     public const string ReportsRead   = "Reports.Read";

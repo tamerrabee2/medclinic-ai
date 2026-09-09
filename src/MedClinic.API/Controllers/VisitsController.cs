@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Common;
 using MedClinic.Shared.Constants;
@@ -210,7 +211,7 @@ public class VisitsController : BaseController
                 .FirstOrDefaultAsync(a => a.Id == request.AppointmentId && a.ClinicId == clinicId, ct);
             if (apt != null)
             {
-                apt.Status    = "InProgress";
+                apt.Status    = AppointmentStatus.InProgress;
                 apt.UpdatedBy = CurrentUserId;
             }
         }
@@ -287,9 +288,9 @@ public class VisitsController : BaseController
         visit.UpdatedBy      = CurrentUserId;
 
         // Auto-complete linked appointment
-        if (visit.Appointment != null && visit.Appointment.Status != "Cancelled")
+        if (visit.Appointment != null && visit.Appointment.Status != AppointmentStatus.Cancelled)
         {
-            visit.Appointment.Status    = "Completed";
+            visit.Appointment.Status    = AppointmentStatus.Completed;
             visit.Appointment.UpdatedBy = CurrentUserId;
         }
 

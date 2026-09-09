@@ -1,3 +1,5 @@
+using MedClinic.Domain.Common;
+
 namespace MedClinic.Domain.Entities;
 
 public class MedicalAnnotation : BaseEntity
@@ -15,6 +17,6 @@ public class MedicalAnnotation : BaseEntity
     public double?     AIConfidence   { get; set; }
 
     // Navigation
-    public RadiologyImage? Image  { get; set; }
-    public User?           Doctor { get; set; }
+    public MedicalImage?   Image  { get; set; }
+    public ApplicationUser? Doctor { get; set; }
 }

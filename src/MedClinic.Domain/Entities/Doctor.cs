@@ -7,7 +7,8 @@ public class Doctor : TenantEntity
 {
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
-    public string FullName => $"{FirstName} {LastName}".Trim();
+    public string? Title { get; set; }
+    public string FullName => $"{Title} {FirstName} {LastName}".TrimStart();
     public string Specialty { get; set; } = string.Empty;
     public string? SubSpecialty { get; set; }
     public string? LicenseNumber { get; set; }
@@ -18,9 +19,12 @@ public class Doctor : TenantEntity
     public string? Qualifications { get; set; }
     public int? ConsultationDurationMinutes { get; set; } = 30;
     public bool IsActive { get; set; } = true;
+    public bool IsAvailable { get; set; } = true;
+    public decimal? ConsultationFee { get; set; }
     public Guid? UserId { get; set; }
 
     public Clinic Clinic { get; set; } = null!;
     public ApplicationUser? User { get; set; }
     public ICollection<Appointment> Appointments { get; set; } = [];
+    public ICollection<Visit> Visits { get; set; } = [];
 }

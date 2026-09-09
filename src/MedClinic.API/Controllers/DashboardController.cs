@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Constants;
 using MedClinic.API.Authorization;

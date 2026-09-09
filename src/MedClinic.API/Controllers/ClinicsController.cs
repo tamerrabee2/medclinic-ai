@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Common;
 using MedClinic.Shared.Constants;
@@ -134,9 +135,9 @@ public class ClinicsController : BaseController
             TodayAppointments = await _context.Appointments.CountAsync(a =>
                 a.ClinicId == id &&
                 a.ScheduledAt.Date == DateTime.UtcNow.Date &&
-                a.Status != "Cancelled", ct),
+                a.Status != AppointmentStatus.Cancelled, ct),
             PendingAppointments = await _context.Appointments.CountAsync(a =>
-                a.ClinicId == id && a.Status == "Scheduled", ct)
+                a.ClinicId == id && a.Status == AppointmentStatus.Scheduled, ct)
         };
 
         return Success(stats);

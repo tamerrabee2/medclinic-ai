@@ -14,7 +14,7 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(n => n.Message)
+        builder.Property(n => n.Body)
             .IsRequired()
             .HasMaxLength(2000);
 
@@ -22,7 +22,7 @@ public class NotificationConfiguration : IEntityTypeConfiguration<Notification>
             .IsRequired()
             .HasMaxLength(100);
 
-        builder.Property(n => n.ReferenceId)
+        builder.Property(n => n.EntityType)
             .HasMaxLength(100);
 
         builder.HasIndex(n => new { n.UserId, n.IsRead });

@@ -13,6 +13,7 @@ public class Patient : TenantEntity
     public Gender Gender { get; set; }
     public BloodType BloodType { get; set; } = BloodType.Unknown;
     public string? NationalId { get; set; }
+    public string? FileNumber { get; set; }
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Address { get; set; }

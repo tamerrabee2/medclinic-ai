@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,16 +61,19 @@ public class AppointmentReminderJob : BackgroundService
 
         foreach (var appt in upcoming)
         {
-            // Notify doctor
-            await notifications.NotifyAsync(
-                userId:     appt.Doctor.UserId,
-                clinicId:   appt.ClinicId,
-                title:      "Upcoming Appointment",
-                body:       $"You have an appointment with {appt.Patient.FirstName} {appt.Patient.LastName} at {appt.ScheduledAt:HH:mm}.",
-                type:       NotificationTypes.AppointmentReminder,
-                entityType: "Appointment",
-                entityId:   appt.Id,
-                ct:         ct);
+            if (appt.Doctor.UserId.HasValue)
+            {
+                // Notify doctor
+                await notifications.NotifyAsync(
+                    userId:     appt.Doctor.UserId.Value,
+                    clinicId:   appt.ClinicId,
+                    title:      "Upcoming Appointment",
+                    body:       $"You have an appointment with {appt.Patient.FirstName} {appt.Patient.LastName} at {appt.ScheduledAt:HH:mm}.",
+                    type:       NotificationTypes.AppointmentReminder,
+                    entityType: "Appointment",
+                    entityId:   appt.Id,
+                    ct:         ct);
+            }
 
             appt.ReminderSent = true;
         }

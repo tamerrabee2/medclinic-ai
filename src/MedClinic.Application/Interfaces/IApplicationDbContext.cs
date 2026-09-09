@@ -20,6 +20,8 @@ public interface IApplicationDbContext
     DbSet<RadiologyStudy> RadiologyStudies { get; }
     DbSet<MedicalImage> MedicalImages { get; }
     DbSet<MedicalAnnotation> MedicalAnnotations { get; }
+    DbSet<BodyMapAnnotation> BodyMapAnnotations { get; }
+    DbSet<DentalRecord> DentalRecords { get; }
     DbSet<AIAnalysis> AIAnalyses { get; }
     DbSet<AIConversation> AIConversations { get; }
     DbSet<AIConversationMessage> AIConversationMessages { get; }

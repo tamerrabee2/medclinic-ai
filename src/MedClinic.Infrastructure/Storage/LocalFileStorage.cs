@@ -6,7 +6,7 @@ namespace MedClinic.Infrastructure.Storage;
 
 /// <summary>
 /// Local disk storage for development.
-/// Replace with S3 / Azure Blob in production (Phase 6).
+/// Replace with S3 / Azure Blob in production.
 /// </summary>
 public class LocalFileStorage : IFileStorage
 {
@@ -18,6 +18,27 @@ public class LocalFileStorage : IFileStorage
         _basePath = configuration["Storage:LocalPath"] ?? Path.Combine(Directory.GetCurrentDirectory(), "uploads");
         _baseUrl  = configuration["Storage:BaseUrl"]   ?? "http://localhost:5000/uploads";
         Directory.CreateDirectory(_basePath);
+    }
+
+    public async Task<string> UploadAsync(string path, Stream stream, string contentType, CancellationToken ct = default)
+    {
+        var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        await using var fileStream = new FileStream(fullPath, FileMode.Create);
+        await stream.CopyToAsync(fileStream, ct);
+
+        return $"{_baseUrl}/{path.TrimStart('/')}";
+    }
+
+    public Task<Stream> DownloadAsync(string fileUrl, CancellationToken ct = default)
+    {
+        var relative = fileUrl.Replace(_baseUrl, string.Empty).TrimStart('/');
+        var fullPath = Path.Combine(_basePath, relative.Replace('/', Path.DirectorySeparatorChar));
+        Stream stream = File.OpenRead(fullPath);
+        return Task.FromResult(stream);
     }
 
     public async Task<string> SaveAsync(IFormFile file, string folder, CancellationToken ct = default)

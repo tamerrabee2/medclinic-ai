@@ -17,7 +17,16 @@ public class Clinic : BaseEntity
     public string? LicenseNumber { get; set; }
     public string? TaxNumber { get; set; }
     public string TimeZone { get; set; } = "UTC";
+    public string Timezone { get => TimeZone; set => TimeZone = value; }
     public string Currency { get; set; } = "USD";
+    public string InvoicePrefix { get; set; } = "INV";
+    public decimal TaxRate { get; set; } = 0m;
+    public int DefaultAppointmentDuration { get; set; } = 30;
+    public int? MaxDailyAppointments { get; set; }
+    public bool AllowOnlineBooking { get; set; } = true;
+    public TimeOnly? WorkingHoursStart { get; set; }
+    public TimeOnly? WorkingHoursEnd { get; set; }
+    public string? WorkingDays { get; set; }
     public bool IsActive { get; set; } = true;
     public ClinicPlan Plan { get; set; } = ClinicPlan.Free;
     public DateTime? PlanExpiresAt { get; set; }

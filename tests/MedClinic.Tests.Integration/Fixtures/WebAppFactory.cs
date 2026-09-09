@@ -14,16 +14,25 @@ public class WebAppFactory : WebApplicationFactory<Program>
     {
         builder.ConfigureServices(services =>
         {
-            // Replace real DB with InMemory
-            var descriptor = services.SingleOrDefault(d =>
-                d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
-            if (descriptor != null)
-                services.Remove(descriptor);
+            var inMemoryProvider = new ServiceCollection()
+                .AddEntityFrameworkInMemoryDatabase()
+                .BuildServiceProvider();
+
+            // Remove existing DbContext registrations
+            var descriptors = services.Where(d =>
+                d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>) ||
+                d.ServiceType == typeof(DbContextOptions) ||
+                d.ServiceType == typeof(ApplicationDbContext)).ToList();
+
+            foreach (var d in descriptors)
+                services.Remove(d);
 
             services.AddDbContext<ApplicationDbContext>(opts =>
-                opts.UseInMemoryDatabase(_dbName));
+            {
+                opts.UseInMemoryDatabase(_dbName);
+                opts.UseInternalServiceProvider(inMemoryProvider);
+            });
 
-            // Ensure DB created
             var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

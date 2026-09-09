@@ -10,9 +10,14 @@ public class MedicalImage : BaseEntity
     public long    FileSizeBytes    { get; set; }
     public string? ContentType      { get; set; }
     public string? Modality         { get; set; }  // X-Ray, CT, MRI, Ultrasound
+    public string? AnnotatedImagePath { get; set; }
+    public string? AnnotatedImageUrl  { get; set; }
+    public string? AIAnalysisStatus   { get; set; }
+    public DateTime? AIAnalyzedAt     { get; set; }
     public int?    SeriesNumber     { get; set; }  // DICOM series
     public int?    InstanceNumber   { get; set; }  // DICOM instance
     public DateTime UploadedAt      { get; set; } = DateTime.UtcNow;
 
     public RadiologyStudy RadiologyStudy { get; set; } = null!;
+    public ICollection<MedicalAnnotation> Annotations { get; set; } = [];
 }

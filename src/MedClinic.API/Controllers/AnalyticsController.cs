@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Constants;
 using MedClinic.API.Authorization;
@@ -263,7 +264,7 @@ public class AnalyticsController : BaseController
 
         // Gender
         var genderDist = patients
-            .GroupBy(p => p.Gender ?? "Unknown")
+            .GroupBy(p => p.Gender.ToString())
             .Select(g => new { Gender = g.Key, Count = g.Count() });
 
         var total = patients.Count;

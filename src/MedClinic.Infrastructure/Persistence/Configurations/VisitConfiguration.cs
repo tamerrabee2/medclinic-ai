@@ -10,6 +10,8 @@ public class VisitConfiguration : IEntityTypeConfiguration<Visit>
     {
         builder.HasKey(v => v.Id);
 
+        builder.OwnsOne(v => v.Vitals);
+
         builder.Property(v => v.ChiefComplaint)
             .HasMaxLength(1000);
 

@@ -1,9 +1,10 @@
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Constants;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using BC = BCrypt.Net.BCrypt;
 
 namespace MedClinic.Infrastructure.Persistence.Seeder;
 
@@ -11,6 +12,7 @@ public class DatabaseSeeder
 {
     private readonly ApplicationDbContext _db;
     private readonly ILogger<DatabaseSeeder> _logger;
+    private readonly PasswordHasher<ApplicationUser> _hasher = new();
 
     public DatabaseSeeder(ApplicationDbContext db, ILogger<DatabaseSeeder> logger)
     {
@@ -28,32 +30,31 @@ public class DatabaseSeeder
         _logger.LogInformation("Database seeder completed.");
     }
 
-    // ───────────────────────────────────────────────────────────────────
-
     private async Task SeedSuperAdminAsync(CancellationToken ct)
     {
         const string email = "superadmin@medclinic.ai";
         if (await _db.Users.AnyAsync(u => u.Email == email, ct)) return;
 
-        var superAdmin = new User
+        var superAdmin = new ApplicationUser
         {
-            Id           = Guid.NewGuid(),
-            FirstName    = "Super",
-            LastName     = "Admin",
-            Email        = email,
-            PasswordHash = BC.HashPassword("Admin@123!"),
-            Role         = Roles.SuperAdmin,
-            IsActive     = true,
-            IsVerified   = true,
-            CreatedAt    = DateTime.UtcNow
+            Id                 = Guid.NewGuid(),
+            FirstName          = "Super",
+            LastName           = "Admin",
+            Email              = email,
+            UserName           = email,
+            NormalizedEmail    = email.ToUpperInvariant(),
+            NormalizedUserName = email.ToUpperInvariant(),
+            EmailConfirmed     = true,
+            IsActive           = true,
+            CreatedAt          = DateTime.UtcNow,
+            SecurityStamp      = Guid.NewGuid().ToString()
         };
+        superAdmin.PasswordHash = _hasher.HashPassword(superAdmin, "Admin@123!");
 
         _db.Users.Add(superAdmin);
         await _db.SaveChangesAsync(ct);
         _logger.LogInformation("SuperAdmin seeded: {Email}", email);
     }
-
-    // ───────────────────────────────────────────────────────────────────
 
     private async Task SeedDemoClinicAsync(CancellationToken ct)
     {
@@ -85,46 +86,55 @@ public class DatabaseSeeder
         _db.Clinics.Add(clinic);
 
         // ── Admin User ──
-        var adminUser = new User
+        var adminUser = new ApplicationUser
         {
-            Id           = Guid.NewGuid(),
-            FirstName    = "Clinic",
-            LastName     = "Admin",
-            Email        = "admin@medclinic.ai",
-            PasswordHash = BC.HashPassword("Admin@123!"),
-            Role         = Roles.ClinicAdmin,
-            IsActive     = true,
-            IsVerified   = true,
-            CreatedAt    = DateTime.UtcNow
+            Id                 = Guid.NewGuid(),
+            FirstName          = "Clinic",
+            LastName           = "Admin",
+            Email              = "admin@medclinic.ai",
+            UserName           = "admin@medclinic.ai",
+            NormalizedEmail    = "ADMIN@MEDCLINIC.AI",
+            NormalizedUserName = "ADMIN@MEDCLINIC.AI",
+            EmailConfirmed     = true,
+            IsActive           = true,
+            CreatedAt          = DateTime.UtcNow,
+            SecurityStamp      = Guid.NewGuid().ToString()
         };
+        adminUser.PasswordHash = _hasher.HashPassword(adminUser, "Admin@123!");
 
         // ── Doctor User ──
-        var doctorUser = new User
+        var doctorUser = new ApplicationUser
         {
-            Id           = Guid.NewGuid(),
-            FirstName    = "Ahmed",
-            LastName     = "Hassan",
-            Email        = "doctor@medclinic.ai",
-            PasswordHash = BC.HashPassword("Doctor@123!"),
-            Role         = Roles.Doctor,
-            IsActive     = true,
-            IsVerified   = true,
-            CreatedAt    = DateTime.UtcNow
+            Id                 = Guid.NewGuid(),
+            FirstName          = "Ahmed",
+            LastName           = "Hassan",
+            Email              = "doctor@medclinic.ai",
+            UserName           = "doctor@medclinic.ai",
+            NormalizedEmail    = "DOCTOR@MEDCLINIC.AI",
+            NormalizedUserName = "DOCTOR@MEDCLINIC.AI",
+            EmailConfirmed     = true,
+            IsActive           = true,
+            CreatedAt          = DateTime.UtcNow,
+            SecurityStamp      = Guid.NewGuid().ToString()
         };
+        doctorUser.PasswordHash = _hasher.HashPassword(doctorUser, "Doctor@123!");
 
         // ── Receptionist ──
-        var receptionUser = new User
+        var receptionUser = new ApplicationUser
         {
-            Id           = Guid.NewGuid(),
-            FirstName    = "Sara",
-            LastName     = "Ali",
-            Email        = "reception@medclinic.ai",
-            PasswordHash = BC.HashPassword("Staff@123!"),
-            Role         = Roles.Receptionist,
-            IsActive     = true,
-            IsVerified   = true,
-            CreatedAt    = DateTime.UtcNow
+            Id                 = Guid.NewGuid(),
+            FirstName          = "Sara",
+            LastName           = "Ali",
+            Email              = "reception@medclinic.ai",
+            UserName           = "reception@medclinic.ai",
+            NormalizedEmail    = "RECEPTION@MEDCLINIC.AI",
+            NormalizedUserName = "RECEPTION@MEDCLINIC.AI",
+            EmailConfirmed     = true,
+            IsActive           = true,
+            CreatedAt          = DateTime.UtcNow,
+            SecurityStamp      = Guid.NewGuid().ToString()
         };
+        receptionUser.PasswordHash = _hasher.HashPassword(receptionUser, "Staff@123!");
 
         _db.Users.AddRange(adminUser, doctorUser, receptionUser);
 
@@ -151,9 +161,9 @@ public class DatabaseSeeder
         // ── Sample Patients ──
         var patients = new[]
         {
-            new Patient { Id = Guid.NewGuid(), ClinicId = clinic.Id, FirstName = "Mohammed", LastName = "Al-Rashid", DateOfBirth = new DateTime(1985, 3, 15), Gender = "Male",   Phone = "+1-555-1001", FileNumber = "P-001", CreatedAt = DateTime.UtcNow },
-            new Patient { Id = Guid.NewGuid(), ClinicId = clinic.Id, FirstName = "Fatima",   LastName = "Nour",      DateOfBirth = new DateTime(1990, 7, 22), Gender = "Female", Phone = "+1-555-1002", FileNumber = "P-002", CreatedAt = DateTime.UtcNow },
-            new Patient { Id = Guid.NewGuid(), ClinicId = clinic.Id, FirstName = "Khalid",   LastName = "Ibrahim",   DateOfBirth = new DateTime(1978, 11, 5), Gender = "Male",   Phone = "+1-555-1003", FileNumber = "P-003", CreatedAt = DateTime.UtcNow }
+            new Patient { Id = Guid.NewGuid(), ClinicId = clinic.Id, FirstName = "Mohammed", LastName = "Al-Rashid", DateOfBirth = new DateTime(1985, 3, 15), Gender = Gender.Male,   Phone = "+1-555-1001", NationalId = "P-001", CreatedAt = DateTime.UtcNow },
+            new Patient { Id = Guid.NewGuid(), ClinicId = clinic.Id, FirstName = "Fatima",   LastName = "Nour",      DateOfBirth = new DateTime(1990, 7, 22), Gender = Gender.Female, Phone = "+1-555-1002", NationalId = "P-002", CreatedAt = DateTime.UtcNow },
+            new Patient { Id = Guid.NewGuid(), ClinicId = clinic.Id, FirstName = "Khalid",   LastName = "Ibrahim",   DateOfBirth = new DateTime(1978, 11, 5), Gender = Gender.Male,   Phone = "+1-555-1003", NationalId = "P-003", CreatedAt = DateTime.UtcNow }
         };
         _db.Patients.AddRange(patients);
 

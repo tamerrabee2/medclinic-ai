@@ -22,6 +22,7 @@ public class Visit : TenantEntity
 
     public Patient Patient { get; set; } = null!;
     public Doctor Doctor { get; set; } = null!;
+    public Clinic Clinic { get; set; } = null!;
     public Appointment? Appointment { get; set; }
     public ICollection<Prescription> Prescriptions { get; set; } = [];
     public ICollection<LabOrder> LabOrders { get; set; } = [];

@@ -150,7 +150,7 @@ public class AIServiceTests
             PatientId = Guid.NewGuid(),
             DoctorId  = Guid.NewGuid(),
             CreatedAt = DateTime.UtcNow,
-            Status    = "Completed"
+            Status    = MedClinic.Domain.Entities.LabOrderStatus.Completed
         };
         db.LabOrders.Add(labOrder);
 

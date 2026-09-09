@@ -19,10 +19,7 @@ public class PatientConfiguration : IEntityTypeConfiguration<Patient>
         b.HasIndex(p => new { p.ClinicId, p.NationalId }).IsUnique().HasFilter("\"NationalId\" IS NOT NULL");
         b.HasIndex(p => new { p.ClinicId, p.Phone });
 
-        // Relationships
-        b.HasMany(p => p.Allergies)
-            .WithOne(a => a.Patient)
-            .HasForeignKey(a => a.PatientId)
-            .OnDelete(DeleteBehavior.Cascade);
+        b.Property(p => p.Allergies).HasMaxLength(1000);
+        b.Property(p => p.ChronicConditions).HasMaxLength(1000);
     }
 }

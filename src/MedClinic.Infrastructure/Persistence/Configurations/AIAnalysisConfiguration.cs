@@ -14,23 +14,21 @@ public class AIAnalysisConfiguration : IEntityTypeConfiguration<AIAnalysis>
             .IsRequired()
             .HasMaxLength(100);
 
-        builder.Property(a => a.Status)
-            .IsRequired()
-            .HasMaxLength(50);
-
-        builder.Property(a => a.Provider)
-            .HasMaxLength(100);
-
-        builder.Property(a => a.Summary)
+        builder.Property(a => a.Findings)
             .HasMaxLength(4000);
 
-        builder.Property(a => a.ResultJson)
-            .HasColumnType("jsonb");
+        builder.Property(a => a.Confidence)
+            .HasPrecision(5, 4);
 
-        builder.Property(a => a.ErrorMessage)
-            .HasMaxLength(2000);
+        builder.Property(a => a.ModelVersion)
+            .HasMaxLength(100);
 
-        builder.HasIndex(a => new { a.ClinicId, a.Status });
-        builder.HasIndex(a => a.ReferenceId);
+        builder.Property(a => a.ReviewedBy)
+            .HasMaxLength(200);
+
+        builder.HasOne(a => a.RadiologyStudy)
+            .WithMany(s => s.AIAnalyses)
+            .HasForeignKey(a => a.RadiologyStudyId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

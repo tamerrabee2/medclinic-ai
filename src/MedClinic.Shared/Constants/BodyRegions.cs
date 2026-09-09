@@ -15,6 +15,7 @@ public static class BodyRegions
     public const string Chest   = "Chest";
     public const string Abdomen = "Abdomen";
     public const string Pelvis  = "Pelvis";
+    public const string Groin   = "Groin";
 
     // Trunk — Posterior
     public const string UpperBack  = "UpperBack";
@@ -43,7 +44,7 @@ public static class BodyRegions
 
     public static readonly IReadOnlyList<string> All = [
         Head, Face, Neck,
-        Chest, Abdomen, Pelvis,
+        Chest, Abdomen, Pelvis, Groin,
         UpperBack, LowerBack, Buttocks,
         LeftShoulder, RightShoulder,
         LeftArm, RightArm,

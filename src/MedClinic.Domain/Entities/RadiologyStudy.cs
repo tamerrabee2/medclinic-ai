@@ -13,6 +13,7 @@ public class RadiologyStudy : TenantEntity
     public string? ClinicalInfo { get; set; }
     public string? Findings { get; set; }
     public string? Impression { get; set; }
+    public string? AiSummary { get; set; }
     public string? Notes { get; set; }
     public string? ReportedBy { get; set; }
     public DateTime? ReportedAt { get; set; }
@@ -22,6 +23,7 @@ public class RadiologyStudy : TenantEntity
     public bool DoctorReviewed { get; set; } = false;
 
     public Patient Patient { get; set; } = null!;
+    public Doctor? Doctor { get; set; }
     public ICollection<MedicalImage> Images { get; set; } = [];
     public ICollection<AIAnalysis> AIAnalyses { get; set; } = [];
 }

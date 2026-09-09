@@ -1,3 +1,5 @@
+using MedClinic.Domain.Common;
+
 namespace MedClinic.Domain.Entities;
 
 public class BodyMapAnnotation : BaseEntity
@@ -14,7 +16,7 @@ public class BodyMapAnnotation : BaseEntity
     // Clinical data
     public string? Symptom    { get; set; }
     public int?    PainLevel  { get; set; } // 1-10
-    public string? Notes      get; set; }
+    public string? Notes      { get; set; }
     public string? Diagnosis  { get; set; }
 
     // SVG position

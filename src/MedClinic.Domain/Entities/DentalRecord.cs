@@ -1,3 +1,5 @@
+using MedClinic.Domain.Common;
+
 namespace MedClinic.Domain.Entities;
 
 public class DentalRecord : BaseEntity

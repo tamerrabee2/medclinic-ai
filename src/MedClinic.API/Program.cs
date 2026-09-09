@@ -1,52 +1,23 @@
 using MedClinic.API.Middleware;
+using MedClinic.Application;
 using MedClinic.Application.Interfaces;
-using MedClinic.Infrastructure.Extensions;
+using MedClinic.Infrastructure;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Infrastructure.Persistence.Seeder;
-using MedClinic.Infrastructure.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 var config  = builder.Configuration;
 
 // ──────────────────────────────────────────────────────────────────
-// DATABASE
+// INFRASTRUCTURE & APPLICATION DI
 // ──────────────────────────────────────────────────────────────────
-builder.Services.AddDbContext<ApplicationDbContext>(opts =>
-    opts.UseNpgsql(
-        config.GetConnectionString("DefaultConnection"),
-        npgsql => npgsql.MigrationsAssembly("MedClinic.Infrastructure")
-    ));
+builder.Services.AddInfrastructure(config);
+builder.Services.AddApplication();
 
 // ──────────────────────────────────────────────────────────────────
-// JWT AUTHENTICATION
-// ──────────────────────────────────────────────────────────────────
-var jwtKey    = config["Jwt:Key"]    ?? throw new InvalidOperationException("Jwt:Key missing.");
-var jwtIssuer = config["Jwt:Issuer"] ?? "MedClinicAPI";
-var jwtAudience = config["Jwt:Audience"] ?? "MedClinicClients";
-
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(opts =>
-    {
-        opts.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer           = true,
-            ValidateAudience         = true,
-            ValidateLifetime         = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer              = jwtIssuer,
-            ValidAudience            = jwtAudience,
-            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew                = TimeSpan.Zero
-        };
-    });
-
-// ──────────────────────────────────────────────────────────────────
-// AUTHORIZATION
+// AUTHORIZATION POLICIES
 // ──────────────────────────────────────────────────────────────────
 builder.Services.AddAuthorization(opts =>
 {
@@ -59,14 +30,6 @@ builder.Services.AddAuthorization(opts =>
     foreach (var perm in permissions)
         opts.AddPolicy(perm, policy => policy.RequireClaim("permission", perm));
 });
-
-// ──────────────────────────────────────────────────────────────────
-// APPLICATION SERVICES
-// ──────────────────────────────────────────────────────────────────
-builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ITenantContext, TenantContext>();
-builder.Services.AddScoped<DatabaseSeeder>();
-builder.Services.AddInfrastructureServices();
 
 // ──────────────────────────────────────────────────────────────────
 // CONTROLLERS + SWAGGER
@@ -115,6 +78,17 @@ builder.Services.AddCors(opts =>
          .AllowAnyHeader()
          .AllowAnyMethod()));
 
+// Health Checks
+var healthCheckBuilder = builder.Services.AddHealthChecks();
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    var connStr = config.GetConnectionString("DefaultConnection");
+    if (!string.IsNullOrWhiteSpace(connStr))
+    {
+        healthCheckBuilder.AddNpgSql(connStr);
+    }
+}
+
 // ──────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
@@ -133,8 +107,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Migration/Seeder error.");
-        throw;
+        logger.LogWarning(ex, "Could not run database migration/seed on startup (database might be offline or starting up).");
     }
 }
 
@@ -147,10 +120,11 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors();
-app.UseMiddleware<ExceptionMiddleware>();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<TenantMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapHealthChecks("/health");
 
 app.Run();

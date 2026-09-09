@@ -1,4 +1,5 @@
 using FluentAssertions;
+using MedClinic.Application.Features.Patients.DTOs;
 using MedClinic.Application.Features.Patients.Services;
 using MedClinic.Tests.Unit.Helpers;
 using Xunit;

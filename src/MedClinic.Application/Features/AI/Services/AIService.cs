@@ -1,7 +1,6 @@
 using MedClinic.Application.Features.AI.DTOs;
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
-using MedClinic.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -9,13 +8,13 @@ namespace MedClinic.Application.Features.AI.Services;
 
 public class AIService
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IApplicationDbContext _db;
     private readonly ITenantContext       _tenant;
     private readonly IAIProvider          _ai;
     private readonly ILogger<AIService>   _logger;
 
     public AIService(
-        ApplicationDbContext db,
+        IApplicationDbContext db,
         ITenantContext tenant,
         IAIProvider ai,
         ILogger<AIService> logger)
@@ -36,7 +35,7 @@ public class AIService
             .OrderByDescending(c => c.UpdatedAt)
             .Select(c => new ConversationSummaryDto(
                 c.Id,
-                c.Title,
+                c.Title ?? "New Conversation",
                 c.Messages.OrderByDescending(m => m.CreatedAt)
                           .Select(m => m.Content)
                           .FirstOrDefault(),
@@ -48,7 +47,7 @@ public class AIService
         Guid conversationId, Guid userId, CancellationToken ct = default)
     {
         var conv = await _db.AIConversations
-            .Include(c => c.Messages.OrderBy(m => m.CreatedAt))
+            .Include(c => c.Messages)
             .FirstOrDefaultAsync(c =>
                 c.Id == conversationId &&
                 c.UserId == userId &&
@@ -63,8 +62,8 @@ public class AIService
         }
 
         return new ConversationDto(
-            conv.Id, conv.Title, conv.PatientContextId, patientName,
-            conv.Messages.Select(m => new AIMessageDto(
+            conv.Id, conv.Title ?? "Conversation", conv.PatientContextId, patientName,
+            conv.Messages.OrderBy(m => m.CreatedAt).Select(m => new AIMessageDto(
                 m.Id, m.Role, m.Content, false, m.CreatedAt)).ToList(),
             conv.CreatedAt, conv.UpdatedAt);
     }
@@ -77,7 +76,7 @@ public class AIService
         if (req.ConversationId.HasValue)
         {
             conversation = await _db.AIConversations
-                .Include(c => c.Messages.OrderBy(m => m.CreatedAt))
+                .Include(c => c.Messages)
                 .FirstOrDefaultAsync(c =>
                     c.Id == req.ConversationId.Value &&
                     c.UserId == userId &&
@@ -90,7 +89,7 @@ public class AIService
             {
                 Id               = Guid.NewGuid(),
                 UserId           = userId,
-                ClinicId         = _tenant.ClinicId,
+                ClinicId         = _tenant.ClinicId ?? Guid.Empty,
                 Title            = TruncateTitle(req.Message),
                 PatientContextId = req.PatientContextId,
                 CreatedAt        = DateTime.UtcNow,
@@ -103,20 +102,22 @@ public class AIService
         // 2. Build history + patient context
         var systemPrompt = await BuildSystemPromptAsync(req.PatientContextId, ct);
         var history = conversation.Messages
+            .OrderBy(m => m.CreatedAt)
             .Select(m => new ChatMessage(m.Role, m.Content))
             .ToList();
 
         // 3. Save user message
-        var userMsg = new AIMessage
+        var userMsg = new AIConversationMessage
         {
             Id             = Guid.NewGuid(),
             ConversationId = conversation.Id,
             Role           = "user",
             Content        = req.Message,
-            CreatedAt      = DateTime.UtcNow
+            CreatedAt      = DateTime.UtcNow,
+            SentAt         = DateTime.UtcNow
         };
-        _db.AIMessages.Add(userMsg);
         conversation.Messages.Add(userMsg);
+        _db.AIConversationMessages.Add(userMsg);
 
         // 4. Call AI provider
         var aiRequest = new AIChatRequest(
@@ -142,16 +143,17 @@ public class AIService
         }
 
         // 5. Save assistant message
-        var assistantMsg = new AIMessage
+        var assistantMsg = new AIConversationMessage
         {
             Id             = Guid.NewGuid(),
             ConversationId = conversation.Id,
             Role           = "assistant",
             Content        = aiResponse.Content,
-            CreatedAt      = DateTime.UtcNow
+            CreatedAt      = DateTime.UtcNow,
+            SentAt         = DateTime.UtcNow
         };
-        _db.AIMessages.Add(assistantMsg);
         conversation.Messages.Add(assistantMsg);
+        _db.AIConversationMessages.Add(assistantMsg);
         conversation.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
@@ -164,9 +166,9 @@ public class AIService
         }
 
         return new ConversationDto(
-            conversation.Id, conversation.Title,
+            conversation.Id, conversation.Title ?? "Conversation",
             conversation.PatientContextId, patientName,
-            conversation.Messages.Select(m => new AIMessageDto(
+            conversation.Messages.OrderBy(m => m.CreatedAt).Select(m => new AIMessageDto(
                 m.Id, m.Role, m.Content, false, m.CreatedAt)).ToList(),
             conversation.CreatedAt, conversation.UpdatedAt);
     }
@@ -192,10 +194,10 @@ public class AIService
     {
         var labResult = await _db.LabResults
             .Include(r => r.Items)
-            .Include(r => r.Order)
+            .Include(r => r.LabOrder)
             .FirstOrDefaultAsync(r =>
                 r.Id == req.LabResultId &&
-                r.Order!.ClinicId == _tenant.ClinicId, ct)
+                r.LabOrder.ClinicId == _tenant.ClinicId, ct)
             ?? throw new KeyNotFoundException("Lab result not found.");
 
         // Build previous results for comparison
@@ -204,12 +206,12 @@ public class AIService
         {
             previousResults = await _db.LabResults
                 .Include(r => r.Items)
-                .Include(r => r.Order)
+                .Include(r => r.LabOrder)
                 .Where(r =>
-                    r.Order!.PatientId == labResult.Order!.PatientId &&
+                    r.LabOrder.PatientId == labResult.LabOrder.PatientId &&
                     r.Id != req.LabResultId &&
-                    r.ResultDate < labResult.ResultDate)
-                .OrderByDescending(r => r.ResultDate)
+                    r.ReportedAt < labResult.ReportedAt)
+                .OrderByDescending(r => r.ReportedAt)
                 .Take(3)
                 .ToListAsync(ct);
         }
@@ -241,7 +243,6 @@ public class AIService
         Guid userId, GeneratePatientSummaryRequest req, CancellationToken ct = default)
     {
         var patient = await _db.Patients
-            .Include(p => p.Allergies)
             .FirstOrDefaultAsync(p =>
                 p.Id == req.PatientId &&
                 p.ClinicId == _tenant.ClinicId, ct)
@@ -283,17 +284,17 @@ public class AIService
     public async Task<ImageAnalysisResultDto> AnalyzeImageAsync(
         Guid userId, AnalyzeImageRequest req, CancellationToken ct = default)
     {
-        var image = await _db.RadiologyImages
-            .Include(i => i.Study)
+        var image = await _db.MedicalImages
+            .Include(i => i.RadiologyStudy)
             .FirstOrDefaultAsync(i =>
                 i.Id == req.RadiologyImageId &&
-                i.Study!.ClinicId == _tenant.ClinicId, ct)
-            ?? throw new KeyNotFoundException("Radiology image not found.");
+                i.RadiologyStudy.ClinicId == _tenant.ClinicId, ct)
+            ?? throw new KeyNotFoundException("Medical image not found.");
 
         var input = new MedicalImageInput(
             ImageId: image.Id,
-            ImagePath: image.ImagePath,
-            Modality: image.Study!.Modality,
+            ImagePath: image.FileUrl,
+            Modality: image.Modality ?? image.RadiologyStudy.StudyType,
             ClinicalContext: req.ClinicalContext
         );
 
@@ -335,7 +336,6 @@ public class AIService
             return basePrompt;
 
         var patient = await _db.Patients
-            .Include(p => p.Allergies)
             .FirstOrDefaultAsync(p => p.Id == patientId.Value, ct);
 
         if (patient == null) return basePrompt;
@@ -344,7 +344,7 @@ public class AIService
             $"- Name: {patient.FirstName} {patient.LastName}\n" +
             $"- Age: {CalculateAge(patient.DateOfBirth)} years\n" +
             $"- Gender: {patient.Gender}\n" +
-            $"- Allergies: {(patient.Allergies.Any() ? string.Join(", ", patient.Allergies.Select(a => a.Allergen)) : "None recorded")}";
+            $"- Allergies: {(!string.IsNullOrWhiteSpace(patient.Allergies) ? patient.Allergies : "None recorded")}";
 
         return basePrompt + context;
     }

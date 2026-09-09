@@ -34,7 +34,7 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
         var perms = new HashSet<string>();
         foreach (var role in roles)
         {
-            foreach (var p in RolePermissions.GetOrEmpty(role))
+            foreach (var p in GetOrEmpty(role))
                 perms.Add(p);
         }
         return perms;

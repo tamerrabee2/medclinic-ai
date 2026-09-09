@@ -10,17 +10,14 @@ public class PrescriptionItemConfiguration : IEntityTypeConfiguration<Prescripti
     {
         builder.HasKey(pi => pi.Id);
 
-        builder.Property(pi => pi.MedicationName)
+        builder.Property(pi => pi.MedicineName)
             .IsRequired()
             .HasMaxLength(200);
 
-        builder.Property(pi => pi.Dose)
+        builder.Property(pi => pi.Dosage)
             .HasMaxLength(100);
 
         builder.Property(pi => pi.Frequency)
-            .HasMaxLength(100);
-
-        builder.Property(pi => pi.Duration)
             .HasMaxLength(100);
 
         builder.Property(pi => pi.Route)
@@ -31,5 +28,9 @@ public class PrescriptionItemConfiguration : IEntityTypeConfiguration<Prescripti
 
         builder.Property(pi => pi.Notes)
             .HasMaxLength(500);
+
+        builder.Ignore(pi => pi.MedicationName);
+        builder.Ignore(pi => pi.Dose);
+        builder.Ignore(pi => pi.Duration);
     }
 }

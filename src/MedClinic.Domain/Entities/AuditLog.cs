@@ -13,4 +13,6 @@ public class AuditLog : BaseEntity
     public string? OldValues  { get; set; }  // JSON snapshot before
     public string? NewValues  { get; set; }  // JSON snapshot after
     public string? IpAddress  { get; set; }
+    public string? UserAgent  { get; set; }
+    public string? Description { get; set; }
 }

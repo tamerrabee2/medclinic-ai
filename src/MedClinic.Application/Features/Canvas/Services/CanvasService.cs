@@ -1,19 +1,18 @@
 using MedClinic.Application.Features.Canvas.DTOs;
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
-using MedClinic.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedClinic.Application.Features.Canvas.Services;
 
 public class CanvasService
 {
-    private readonly ApplicationDbContext _db;
+    private readonly IApplicationDbContext _db;
     private readonly ITenantContext       _tenant;
     private readonly IFileStorage         _storage;
 
     public CanvasService(
-        ApplicationDbContext db,
+        IApplicationDbContext db,
         ITenantContext tenant,
         IFileStorage storage)
     {
@@ -120,8 +119,8 @@ public class CanvasService
             var path   = $"annotations/{req.MedicalImageId}/preview_{doctorId}.jpg";
             await _storage.UploadAsync(path, stream, "image/jpeg", ct);
 
-            // Update the RadiologyImage annotated path
-            var image = await _db.RadiologyImages
+            // Update the MedicalImage annotated path
+            var image = await _db.MedicalImages
                 .FirstOrDefaultAsync(i => i.Id == req.MedicalImageId, ct);
             if (image != null)
             {
@@ -159,7 +158,7 @@ public class CanvasService
             VisitId     = req.VisitId,
             PatientId   = req.PatientId,
             DoctorId    = doctorId,
-            ClinicId    = _tenant.ClinicId,
+            ClinicId    = _tenant.ClinicId ?? Guid.Empty,
             Region      = req.Region,
             Side        = req.Side,
             Symptom     = req.Symptom,
@@ -248,7 +247,7 @@ public class CanvasService
         {
             Id            = Guid.NewGuid(),
             PatientId     = req.PatientId,
-            ClinicId      = _tenant.ClinicId,
+            ClinicId      = _tenant.ClinicId ?? Guid.Empty,
             VisitId       = req.VisitId,
             DoctorId      = doctor.Id,
             ToothNumber   = req.ToothNumber,

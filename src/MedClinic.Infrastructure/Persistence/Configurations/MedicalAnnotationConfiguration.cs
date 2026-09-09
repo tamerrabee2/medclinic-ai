@@ -22,6 +22,7 @@ public class MedicalAnnotationConfiguration : IEntityTypeConfiguration<MedicalAn
         b.HasOne(a => a.Doctor)
             .WithMany()
             .HasForeignKey(a => a.DoctorId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

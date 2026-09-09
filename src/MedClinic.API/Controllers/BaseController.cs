@@ -14,13 +14,13 @@ public abstract class BaseController : ControllerBase
     protected IActionResult Created<T>(T data, string? message = null)
         => StatusCode(201, ApiResponse<T>.SuccessResult(data, message));
 
-    protected new IActionResult NotFound(string message)
+    protected IActionResult NotFound(string message)
         => base.NotFound(ApiResponse<object>.ErrorResult(message));
 
-    protected new IActionResult BadRequest(string message)
+    protected IActionResult BadRequest(string message)
         => base.BadRequest(ApiResponse<object>.ErrorResult(message));
 
-    protected new IActionResult Unauthorized(string message = "Unauthorized")
+    protected IActionResult Unauthorized(string message = "Unauthorized")
         => base.Unauthorized(ApiResponse<object>.ErrorResult(message));
 
     protected IActionResult Forbidden(string message = "Access denied.")

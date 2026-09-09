@@ -173,7 +173,7 @@ public class OpenAIProvider : IAIProvider
 
         var prompt =
             $"Summarize the medical history for patient: {input.Patient.FirstName} {input.Patient.LastName}, " +
-            $"Age: {DateTime.Today.Year - (input.Patient.DateOfBirth?.Year ?? 0)}, " +
+            $"Age: {input.Patient.Age}, " +
             $"Gender: {input.Patient.Gender}.\n\n" +
             $"Recent visits:\n{(string.IsNullOrEmpty(visits) ? "None recorded" : visits)}\n\n" +
             "Provide: summary, active conditions, current medications, recent abnormalities, follow-up needs.";

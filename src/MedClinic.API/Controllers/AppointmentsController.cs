@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Constants;
 using MedClinic.API.Authorization;
@@ -50,7 +51,8 @@ public class AppointmentsController : BaseController
         if (patientId.HasValue) query = query.Where(a => a.PatientId == patientId);
         if (from.HasValue)      query = query.Where(a => a.ScheduledAt >= from);
         if (to.HasValue)        query = query.Where(a => a.ScheduledAt <= to);
-        if (!string.IsNullOrWhiteSpace(status)) query = query.Where(a => a.Status == status);
+        if (!string.IsNullOrWhiteSpace(status) && Enum.TryParse<AppointmentStatus>(status, true, out var parsedStatus))
+            query = query.Where(a => a.Status == parsedStatus);
 
         var total = await query.CountAsync(ct);
         var items = await query
@@ -114,7 +116,7 @@ public class AppointmentsController : BaseController
         var conflict = await _context.Appointments.AnyAsync(a =>
             a.DoctorId == request.DoctorId &&
             a.ClinicId == clinicId &&
-            a.Status != "Cancelled" &&
+            a.Status != AppointmentStatus.Cancelled &&
             a.ScheduledAt < endTime &&
             a.ScheduledAt.AddMinutes(a.DurationMinutes) > request.ScheduledAt, ct);
 
@@ -129,7 +131,7 @@ public class AppointmentsController : BaseController
             DurationMinutes = request.DurationMinutes,
             Type = request.Type,
             Notes = request.Notes,
-            Status = "Scheduled",
+            Status = AppointmentStatus.Scheduled,
             CreatedBy = CurrentUserId
         };
 
@@ -152,8 +154,11 @@ public class AppointmentsController : BaseController
 
         if (apt == null) return NotFound("Appointment not found.");
 
-        apt.Status = request.Status;
-        if (request.Status == "Cancelled") apt.CancellationReason = request.Reason;
+        if (!Enum.TryParse<AppointmentStatus>(request.Status, true, out var newStatus))
+            return BadRequest($"Invalid appointment status: {request.Status}");
+
+        apt.Status = newStatus;
+        if (newStatus == AppointmentStatus.Cancelled) apt.CancellationReason = request.Reason;
         apt.UpdatedBy = CurrentUserId;
 
         await _context.SaveChangesAsync(ct);
@@ -170,9 +175,9 @@ public class AppointmentsController : BaseController
             .FirstOrDefaultAsync(a => a.Id == id && a.ClinicId == clinicId, ct);
 
         if (apt == null) return NotFound("Appointment not found.");
-        if (apt.Status == "Cancelled") return BadRequest("Appointment is already cancelled.");
+        if (apt.Status == AppointmentStatus.Cancelled) return BadRequest("Appointment is already cancelled.");
 
-        apt.Status = "Cancelled";
+        apt.Status = AppointmentStatus.Cancelled;
         apt.CancellationReason = request?.Reason;
         apt.UpdatedBy = CurrentUserId;
 

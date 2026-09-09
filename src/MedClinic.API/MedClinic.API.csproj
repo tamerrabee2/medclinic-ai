@@ -10,12 +10,92 @@
     <ProjectReference Include="..\MedClinic.Application\MedClinic.Application.csproj" />
     <ProjectReference Include="..\MedClinic.Infrastructure\MedClinic.Infrastructure.csproj" />
     <ProjectReference Include="..\MedClinic.Shared\MedClinic.Shared.csproj" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <ProjectReference Include="..\..\frontend\MedClinic.Frontend.csproj" />
+    <PackageReference Include="Microsoft.OpenApi" Version="1.6.22" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
     <PackageReference Include="AspNetCoreRateLimit" Version="5.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Diagnostics.HealthChecks" Version="2.2.0" />
     <PackageReference Include="AspNetCore.HealthChecks.UI.Client" Version="9.0.0" />
     <PackageReference Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="..\..\frontend\src\app\login\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\patients\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\patients\[id]\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\appointments\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\canvas\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\dental\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\ai-assistant\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\lab-analyzer\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\radiology\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\prescriptions\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\billing\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\notifications\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\visits\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\analytics\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\staff\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\users\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\laboratory\" />
+    <Folder Include="..\..\frontend\src\app\dashboard\audit-logs\" />
+    <Folder Include="..\..\frontend\src\components\layout\" />
+    <Folder Include="..\..\frontend\src\lib\" />
+    <Folder Include="..\..\frontend\public\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Authentication Screen -->
+    <Content Include="..\..\frontend\src\app\login\page.tsx" Link="Frontend\app\login\page.tsx" />
+
+    <!-- Dashboard Shell & Overview Screen -->
+    <Content Include="..\..\frontend\src\app\dashboard\layout.tsx" Link="Frontend\app\dashboard\layout.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\page.tsx" Link="Frontend\app\dashboard\page.tsx" />
+
+    <!-- Specialized Clinical Screens -->
+    <Content Include="..\..\frontend\src\app\dashboard\patients\page.tsx" Link="Frontend\app\dashboard\patients\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\patients\[id]\page.tsx" Link="Frontend\app\dashboard\patients\[id]\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\visits\page.tsx" Link="Frontend\app\dashboard\visits\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\appointments\page.tsx" Link="Frontend\app\dashboard\appointments\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\canvas\page.tsx" Link="Frontend\app\dashboard\canvas\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\dental\page.tsx" Link="Frontend\app\dashboard\dental\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\ai-assistant\page.tsx" Link="Frontend\app\dashboard\ai-assistant\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\lab-analyzer\page.tsx" Link="Frontend\app\dashboard\lab-analyzer\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\laboratory\page.tsx" Link="Frontend\app\dashboard\laboratory\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\radiology\page.tsx" Link="Frontend\app\dashboard\radiology\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\prescriptions\page.tsx" Link="Frontend\app\dashboard\prescriptions\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\billing\page.tsx" Link="Frontend\app\dashboard\billing\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\analytics\page.tsx" Link="Frontend\app\dashboard\analytics\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\users\page.tsx" Link="Frontend\app\dashboard\users\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\staff\page.tsx" Link="Frontend\app\dashboard\staff\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\audit-logs\page.tsx" Link="Frontend\app\dashboard\audit-logs\page.tsx" />
+    <Content Include="..\..\frontend\src\app\dashboard\notifications\page.tsx" Link="Frontend\app\dashboard\notifications\page.tsx" />
+
+    <!-- Root Pages & Styles -->
+    <Content Include="..\..\frontend\src\app\layout.tsx" Link="Frontend\app\layout.tsx" />
+    <Content Include="..\..\frontend\src\app\page.tsx" Link="Frontend\app\page.tsx" />
+    <Content Include="..\..\frontend\src\app\globals.css" Link="Frontend\app\globals.css" />
+
+    <!-- Layout Components -->
+    <Content Include="..\..\frontend\src\components\layout\Sidebar.tsx" Link="Frontend\components\layout\Sidebar.tsx" />
+    <Content Include="..\..\frontend\src\components\layout\Navbar.tsx" Link="Frontend\components\layout\Navbar.tsx" />
+    <Content Include="..\..\frontend\src\components\layout\CommandPalette.tsx" Link="Frontend\components\layout\CommandPalette.tsx" />
+
+    <!-- Services & Client Libs -->
+    <Content Include="..\..\frontend\src\lib\api.ts" Link="Frontend\lib\api.ts" />
+    <Content Include="..\..\frontend\src\lib\auth.tsx" Link="Frontend\lib\auth.tsx" />
+    <Content Include="..\..\frontend\src\lib\i18n.tsx" Link="Frontend\lib\i18n.tsx" />
+
+    <!-- Configs & Docker -->
+    <Content Include="..\..\frontend\package.json" Link="Frontend\package.json" />
+    <Content Include="..\..\frontend\tsconfig.json" Link="Frontend\tsconfig.json" />
+    <Content Include="..\..\frontend\next.config.js" Link="Frontend\next.config.js" />
+    <Content Include="..\..\frontend\tailwind.config.js" Link="Frontend\tailwind.config.js" />
+    <Content Include="..\..\frontend\postcss.config.js" Link="Frontend\postcss.config.js" />
+    <Content Include="..\..\frontend\Dockerfile" Link="Frontend\Dockerfile" />
   </ItemGroup>
 </Project>

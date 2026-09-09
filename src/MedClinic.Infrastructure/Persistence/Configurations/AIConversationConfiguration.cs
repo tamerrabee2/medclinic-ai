@@ -16,6 +16,8 @@ public class AIConversationConfiguration : IEntityTypeConfiguration<AIConversati
         builder.Property(x => x.ModelVersion).HasMaxLength(100);
         builder.Property(x => x.ContextType).HasMaxLength(100);
 
+        builder.Ignore(x => x.PatientContextId);
+
         builder.HasIndex(x => new { x.ClinicId, x.DoctorId });
         builder.HasIndex(x => x.PatientId);
         builder.HasIndex(x => x.CreatedAt);
@@ -23,6 +25,7 @@ public class AIConversationConfiguration : IEntityTypeConfiguration<AIConversati
         builder.HasOne(x => x.Doctor)
             .WithMany()
             .HasForeignKey(x => x.DoctorId)
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.Patient)

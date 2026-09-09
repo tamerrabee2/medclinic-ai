@@ -1,10 +1,11 @@
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 
 namespace MedClinic.Tests.Unit.Helpers;
 
 public static class TestDataBuilder
 {
-    public static User BuildUser(
+    public static ApplicationUser BuildUser(
         Guid? id = null,
         string email = "doctor@test.com",
         string firstName = "Ahmed",
@@ -12,6 +13,7 @@ public static class TestDataBuilder
     {
         Id        = id ?? Guid.NewGuid(),
         Email     = email,
+        UserName  = email,
         FirstName = firstName,
         LastName  = lastName,
         IsActive  = true,
@@ -24,6 +26,7 @@ public static class TestDataBuilder
     {
         Id        = id ?? Guid.NewGuid(),
         Name      = name,
+        Slug      = (name ?? "Test Clinic").ToLower().Replace(" ", "-"),
         IsActive  = true,
         CreatedAt = DateTime.UtcNow
     };
@@ -41,7 +44,7 @@ public static class TestDataBuilder
         LastName    = lastName,
         Phone       = phone,
         DateOfBirth = new DateTime(1990, 1, 1),
-        Gender      = "Female",
+        Gender      = Gender.Female,
         IsActive    = true,
         CreatedAt   = DateTime.UtcNow
     };
@@ -58,7 +61,7 @@ public static class TestDataBuilder
         PatientId   = patientId ?? Guid.NewGuid(),
         DoctorId    = doctorId  ?? Guid.NewGuid(),
         ScheduledAt = scheduledAt ?? DateTime.UtcNow.AddDays(1),
-        Status      = "Scheduled",
+        Status      = AppointmentStatus.Scheduled,
         CreatedAt   = DateTime.UtcNow
     };
 

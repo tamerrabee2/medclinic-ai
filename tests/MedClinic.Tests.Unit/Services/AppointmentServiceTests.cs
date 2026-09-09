@@ -1,5 +1,7 @@
 using FluentAssertions;
+using MedClinic.Application.Features.Appointments.DTOs;
 using MedClinic.Application.Features.Appointments.Services;
+using MedClinic.Domain.Enums;
 using MedClinic.Tests.Unit.Helpers;
 using Xunit;
 
@@ -81,7 +83,7 @@ public class AppointmentServiceTests
         // Arrange
         var db   = TestDbContextFactory.Create();
         var appt = TestDataBuilder.BuildAppointment(clinicId: _tenant.ClinicId);
-        appt.Status = "Scheduled";
+        appt.Status = AppointmentStatus.Scheduled;
         db.Appointments.Add(appt);
         await db.SaveChangesAsync();
 
@@ -92,7 +94,7 @@ public class AppointmentServiceTests
 
         // Assert
         var updated = await db.Appointments.FindAsync(appt.Id);
-        updated!.Status.Should().Be("Cancelled");
+        updated!.Status.Should().Be(AppointmentStatus.Cancelled);
     }
 
     [Fact]
@@ -101,7 +103,7 @@ public class AppointmentServiceTests
         // Arrange
         var db   = TestDbContextFactory.Create();
         var appt = TestDataBuilder.BuildAppointment(clinicId: _tenant.ClinicId);
-        appt.Status = "Scheduled";
+        appt.Status = AppointmentStatus.Scheduled;
         db.Appointments.Add(appt);
         await db.SaveChangesAsync();
 
@@ -112,6 +114,6 @@ public class AppointmentServiceTests
 
         // Assert
         var updated = await db.Appointments.FindAsync(appt.Id);
-        updated!.Status.Should().Be("Completed");
+        updated!.Status.Should().Be(AppointmentStatus.Completed);
     }
 }
