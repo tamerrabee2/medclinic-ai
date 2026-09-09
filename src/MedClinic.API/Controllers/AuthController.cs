@@ -17,17 +17,23 @@ public class AuthController : BaseController
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IJwtService _jwtService;
     private readonly ApplicationDbContext _context;
+    private readonly MedClinic.Application.Common.Interfaces.IEmailService _emailService;
+    private readonly IConfiguration _config;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IJwtService jwtService,
-        ApplicationDbContext context)
+        ApplicationDbContext context,
+        MedClinic.Application.Common.Interfaces.IEmailService emailService,
+        IConfiguration config)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtService = jwtService;
         _context = context;
+        _emailService = emailService;
+        _config = config;
     }
 
     /// <summary>Register a new user</summary>
@@ -161,17 +167,19 @@ public class AuthController : BaseController
         return Success(new { AccessToken = newAccessToken, RefreshToken = newRefreshToken.Token });
     }
 
-    /// <summary>Forgot password — generate reset token</summary>
+    /// <summary>Forgot password — generate reset token and dispatch link</summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
         // Always return generic 200 message to prevent email enumeration and token leakage
-        if (user != null)
+        if (user != null && !string.IsNullOrWhiteSpace(user.Email))
         {
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-            // In production, token is dispatched securely via notification/email service
+            var frontendUrl = _config["App:FrontendUrl"] ?? "http://localhost:3000";
+            var resetLink = $"{frontendUrl.TrimEnd('/')}/reset-password?token={Uri.EscapeDataString(token)}&email={Uri.EscapeDataString(user.Email)}";
+            await _emailService.SendPasswordResetEmailAsync(user.Email, resetLink, ct);
         }
 
         return Success<object>(null!, "If this email exists, a reset instructions link has been sent.");
