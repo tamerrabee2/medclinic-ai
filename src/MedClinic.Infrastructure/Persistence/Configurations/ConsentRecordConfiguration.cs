@@ -44,6 +44,6 @@ public class ConsentRecordConfiguration : IEntityTypeConfiguration<ConsentRecord
         builder.HasMany(c => c.AuditEvents)
             .WithOne(a => a.ConsentRecord)
             .HasForeignKey(a => a.ConsentRecordId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

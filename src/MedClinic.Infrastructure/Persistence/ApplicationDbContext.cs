@@ -139,6 +139,10 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
                 entry.Entity.UpdatedAt = now;
                 entry.Entity.UpdatedBy = userId == Guid.Empty ? null : userId;
             }
+            else if (entry.State == EntityState.Deleted && (entry.Entity is ConsentRecord || entry.Entity is ConsentAuditEvent))
+            {
+                throw new InvalidOperationException("Hard deletion of consent compliance records is prohibited. Use revocation or soft delete.");
+            }
         }
 
         return await base.SaveChangesAsync(cancellationToken);

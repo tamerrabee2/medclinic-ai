@@ -630,4 +630,91 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
         var json = await res.Content.ReadFromJsonAsync<JsonElement>();
         json.GetProperty("hasActiveConsent").GetBoolean().Should().BeFalse();
     }
+
+    [Fact]
+    public async Task Compliance_HardDelete_OnConsentRecordOrAuditEvents_IsProhibited()
+    {
+        var (clinicAId, _, patientAId, _, _, _, _) = await SeedConsentDataAsync();
+
+        // 1. Verify Restrict behavior prevents deleting ConsentRecord when ConsentAuditEvent exists
+        using (var scope1 = _factory.Services.CreateScope())
+        {
+            var db1 = scope1.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var consent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.GeneralCare,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db1.ConsentRecords.Add(consent);
+
+            var audit = new ConsentAuditEvent
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                ConsentRecordId = consent.Id,
+                PatientId = patientAId,
+                EventType = ConsentAuditEventType.Granted,
+                ConsentType = ConsentType.GeneralCare,
+                Timestamp = DateTime.UtcNow
+            };
+            db1.ConsentAuditEvents.Add(audit);
+            await db1.SaveChangesAsync();
+
+            var removeConsent = () => db1.ConsentRecords.Remove(consent);
+            removeConsent.Should().Throw<InvalidOperationException>()
+                .WithMessage("*association between entity types 'ConsentRecord' and 'ConsentAuditEvent' has been severed*");
+        }
+
+        // 2. Direct hard delete on standalone ConsentRecord is blocked by compliance safeguard in SaveChangesAsync
+        using (var scope2 = _factory.Services.CreateScope())
+        {
+            var db2 = scope2.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var standaloneConsent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.Marketing,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db2.ConsentRecords.Add(standaloneConsent);
+            await db2.SaveChangesAsync();
+
+            db2.ConsentRecords.Remove(standaloneConsent);
+            var saveStandalone = async () => await db2.SaveChangesAsync();
+            await saveStandalone.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*Hard deletion of consent compliance records is prohibited*");
+        }
+
+        // 3. Attempting hard delete on ConsentAuditEvent is blocked by compliance safeguard in SaveChangesAsync
+        using (var scope3 = _factory.Services.CreateScope())
+        {
+            var db3 = scope3.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var standaloneAudit = new ConsentAuditEvent
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                ConsentRecordId = Guid.NewGuid(),
+                PatientId = patientAId,
+                EventType = ConsentAuditEventType.Granted,
+                ConsentType = ConsentType.Research,
+                Timestamp = DateTime.UtcNow
+            };
+            db3.ConsentAuditEvents.Add(standaloneAudit);
+            await db3.SaveChangesAsync();
+
+            db3.ConsentAuditEvents.Remove(standaloneAudit);
+            var saveAudit = async () => await db3.SaveChangesAsync();
+            await saveAudit.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*Hard deletion of consent compliance records is prohibited*");
+        }
+    }
 }
+
