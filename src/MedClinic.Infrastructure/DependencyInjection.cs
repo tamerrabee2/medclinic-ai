@@ -80,6 +80,7 @@ public static partial class DependencyInjection
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAiDecisionAuditService, AiDecisionAuditService>();
+        services.AddScoped<IConsentService, ConsentService>();
         services.AddScoped<MedClinic.Application.Common.Interfaces.IEmailService, EmailService>();
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());

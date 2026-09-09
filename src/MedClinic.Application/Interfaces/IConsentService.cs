@@ -1,4 +1,42 @@
 using MedClinic.Domain.Enums;
+
 namespace MedClinic.Application.Interfaces;
-public interface IConsentService { Task<ConsentDto> RecordAsync(Guid patientId, ConsentType type, bool granted, DateTime? expiresAt, string? notes, Guid? witnessUserId, string? ipAddress, CancellationToken ct=default); Task<ConsentDto> RevokeAsync(Guid patientId, Guid consentId, string reason, CancellationToken ct=default); Task<IReadOnlyList<ConsentDto>> GetHistoryAsync(Guid patientId, CancellationToken ct=default); Task<bool> HasActiveConsentAsync(Guid patientId, ConsentType type, CancellationToken ct=default); }
-public record ConsentDto(Guid Id, Guid PatientId, ConsentType ConsentType, bool IsGranted, DateTime GrantedAt, DateTime? ExpiresAt, Guid? WitnessUserId, string? Notes, bool IsActive);
+
+public interface IConsentService
+{
+    Task<ConsentDto> RecordAsync(
+        Guid patientId,
+        ConsentType type,
+        bool granted,
+        DateTime? expiresAt,
+        string? notes,
+        Guid? witnessUserId,
+        string? ipAddress,
+        CancellationToken ct = default);
+
+    Task<ConsentDto> RevokeAsync(
+        Guid patientId,
+        Guid consentId,
+        string reason,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<ConsentDto>> GetHistoryAsync(
+        Guid patientId,
+        CancellationToken ct = default);
+
+    Task<bool> HasActiveConsentAsync(
+        Guid patientId,
+        ConsentType type,
+        CancellationToken ct = default);
+}
+
+public record ConsentDto(
+    Guid Id,
+    Guid PatientId,
+    ConsentType ConsentType,
+    bool IsGranted,
+    DateTime GrantedAt,
+    DateTime? ExpiresAt,
+    Guid? WitnessUserId,
+    string? Notes,
+    bool IsActive);
