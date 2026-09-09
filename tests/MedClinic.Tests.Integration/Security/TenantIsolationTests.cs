@@ -156,4 +156,137 @@ public class TenantIsolationTests : IClassFixture<WebAppFactory>
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task Visits_CrossTenant_Returns404()
+    {
+        // Arrange
+        var (clinicAId, clinicBId, _, patientBId, tokenUserA) = await SeedTenantDataAsync();
+
+        Guid visitBId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var doctorB = new Doctor
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicBId,
+                Specialty = "General",
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Doctors.Add(doctorB);
+
+            var visitB = new Visit
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicBId,
+                PatientId = patientBId,
+                DoctorId = doctorB.Id,
+                VisitDate = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Visits.Add(visitB);
+            await db.SaveChangesAsync();
+            visitBId = visitB.Id;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/visits/{visitBId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenUserA);
+        request.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Invoices_CrossTenant_Returns404()
+    {
+        // Arrange
+        var (clinicAId, clinicBId, _, patientBId, tokenUserA) = await SeedTenantDataAsync();
+
+        Guid invoiceBId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var invoiceB = new Invoice
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicBId,
+                PatientId = patientBId,
+                InvoiceNumber = $"INV_{Guid.NewGuid():N}"[..12],
+                IssuedAt = DateTime.UtcNow,
+                DueDate = DateTime.UtcNow.AddDays(30),
+                TotalAmount = 250m,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.Invoices.Add(invoiceB);
+            await db.SaveChangesAsync();
+            invoiceBId = invoiceB.Id;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/invoices/{invoiceBId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenUserA);
+        request.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task AiDecisionAudits_CrossTenant_Returns404()
+    {
+        // Arrange
+        var (clinicAId, clinicBId, _, _, tokenUserA) = await SeedTenantDataAsync();
+
+        Guid auditBId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var auditB = new AiDecisionAudit
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicBId,
+                Capability = "SensitiveDiagnosis",
+                ProviderName = "Mock",
+                CreatedAt = DateTime.UtcNow
+            };
+            db.AiDecisionAudits.Add(auditB);
+            await db.SaveChangesAsync();
+            auditBId = auditB.Id;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/ai/audits/{auditBId}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenUserA);
+        request.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Spoofed_Header_WithTokenFromOtherClinic_Returns403()
+    {
+        // Arrange
+        var (_, clinicBId, _, _, tokenUserA) = await SeedTenantDataAsync();
+
+        // Attacker attempts to spoof X-Clinic-Id header to point to Clinic B
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/patients");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenUserA);
+        request.Headers.Add("X-Clinic-Id", clinicBId.ToString());
+
+        // Act
+        var response = await _client.SendAsync(request);
+
+        // Assert — TenantMiddleware must reject spoofed clinic
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
 }
