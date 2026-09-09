@@ -10,6 +10,7 @@ using MedClinic.Infrastructure.Persistence;
 using MedClinic.Infrastructure.Services;
 using MedClinic.Shared.Constants;
 using MedClinic.Tests.Integration.Fixtures;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -745,6 +746,211 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
         var act = async () => await db.SaveChangesAsync();
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*subject to an active legal hold and cannot be deleted or archived*");
+    }
+
+    [Fact]
+    public async Task AuditExplorer_DateRangeValidation_ReturnsBadRequest_WhenFromIsAfterTo()
+    {
+        var (clinicAId, _, _, _, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents?from=2026-09-10T00:00:00Z&to=2026-09-01T00:00:00Z");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task AuditExplorer_CrossTenantIsolation_CannotAccessOtherClinicAudits()
+    {
+        var (clinicAId, clinicBId, patientAId, patientBId, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        // 1. Seed audit event in Clinic B
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var consentB = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicBId,
+                PatientId = patientBId,
+                ConsentType = ConsentType.GeneralCare,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ConsentRecords.Add(consentB);
+            db.ConsentAuditEvents.Add(new ConsentAuditEvent
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicBId,
+                ConsentRecordId = consentB.Id,
+                PatientId = patientBId,
+                EventType = ConsentAuditEventType.Granted,
+                ConsentType = ConsentType.GeneralCare,
+                Reason = "Secret Clinic B Consent Audit Event",
+                Timestamp = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Doctor A from Clinic A queries Audit Explorer
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var body = await res.Content.ReadAsStringAsync();
+        body.Should().NotContain("Secret Clinic B Consent Audit Event");
+    }
+
+    [Fact]
+    public async Task AuditExplorer_LegalHold_GeneratesImmutableConsentAuditEvent()
+    {
+        var (clinicAId, _, patientAId, _, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        Guid consentId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var consent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.AiAssistedCare,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ConsentRecords.Add(consent);
+            await db.SaveChangesAsync();
+            consentId = consent.Id;
+        }
+
+        // 1. Apply legal hold via AuditExplorerController (using Admin/SuperAdmin role)
+        using var adminScope = _factory.Services.CreateScope();
+        var jwt = adminScope.ServiceProvider.GetRequiredService<IJwtService>();
+        var dbCtx = adminScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adminUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"admin_{Guid.NewGuid():N}@clinic.com",
+            UserName = $"admin_{Guid.NewGuid():N}",
+            FirstName = "Compliance",
+            LastName = "Admin",
+            IsActive = true
+        };
+        dbCtx.Users.Add(adminUser);
+        dbCtx.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicAId,
+            UserId = adminUser.Id,
+            Role = Roles.ClinicAdmin,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
+        await dbCtx.SaveChangesAsync();
+        var adminToken = jwt.GenerateAccessTokenWithClinic(adminUser, [Roles.ClinicAdmin], clinicAId);
+
+        using var holdReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/audit/explorer/legal-hold");
+        holdReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        holdReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        holdReq.Content = JsonContent.Create(new
+        {
+            consentRecordId = consentId,
+            isLegalHold = true,
+            reason = "Judicial investigation subpoena #8891"
+        });
+
+        var holdRes = await _client.SendAsync(holdReq);
+        holdRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 2. Verify an immutable ConsentAuditEvent was automatically logged
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var auditEntry = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            verifyDb.ConsentAuditEvents.IgnoreQueryFilters(),
+            a => a.ConsentRecordId == consentId && a.Reason == "Judicial investigation subpoena #8891");
+
+        auditEntry.Should().NotBeNull();
+        auditEntry!.Details.Should().Contain("Active legal hold applied");
+    }
+
+    [Fact]
+    public async Task AuditExplorer_ExportCsv_MasksPiiWhenRequested()
+    {
+        var (clinicAId, _, patientAId, _, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        // 1. Seed a consent audit event
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var consent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.DataSharing,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ConsentRecords.Add(consent);
+            db.ConsentAuditEvents.Add(new ConsentAuditEvent
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                ConsentRecordId = consent.Id,
+                PatientId = patientAId,
+                EventType = ConsentAuditEventType.Granted,
+                ConsentType = ConsentType.DataSharing,
+                IpAddress = "192.168.1.55",
+                Reason = "Clinical data sharing for second opinion",
+                Timestamp = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Request export with maskPii = true
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents/export?maskPii=true");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        res.Content.Headers.ContentType?.MediaType.Should().Be("text/csv");
+
+        var csv = await res.Content.ReadAsStringAsync();
+        csv.Should().Contain("EventId,TimestampUtc,PatientIdentifier");
+        // IP address must be masked
+        csv.Should().Contain("192.168.***.***");
+    }
+
+    [Fact]
+    public async Task AiConsentGuard_BlocksAiChat_WhenConsentIsMissingOrRevoked()
+    {
+        var (clinicAId, _, patientAId, _, tokenDoctorA, _, _) = await SeedConsentDataAsync();
+
+        // Attempting AI chat with a patient context lacking active consent must return 403 Forbidden with consent_required
+        using var chatReq = new HttpRequestMessage(HttpMethod.Post, "/api/v1/ai/chat");
+        chatReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        chatReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        chatReq.Content = JsonContent.Create(new
+        {
+            message = "Please evaluate diabetes risk for this patient",
+            patientContextId = patientAId
+        });
+
+        var chatRes = await _client.SendAsync(chatReq);
+        chatRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        var body = await chatRes.Content.ReadAsStringAsync();
+        body.Should().Contain("consent_required");
     }
 }
 

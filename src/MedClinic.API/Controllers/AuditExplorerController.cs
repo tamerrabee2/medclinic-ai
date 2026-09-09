@@ -31,6 +31,7 @@ public class AuditExplorerController : BaseController
 
     /// <summary>
     /// Search and filter patient consent lifecycle audit events across the clinic.
+    /// Validates date range, pagination bounds, and tenant boundaries.
     /// </summary>
     [HttpGet("consents")]
     [HasPermission(Permissions.PatientConsentsAudit)]
@@ -44,8 +45,24 @@ public class AuditExplorerController : BaseController
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        pageSize = Math.Clamp(pageSize, 1, 200);
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+        {
+            return BadRequest(new { message = "'from' date cannot be after 'to' date." });
+        }
+
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
         var clinicId = ClinicId;
+
+        if (patientId.HasValue)
+        {
+            var patientExists = await _context.Patients
+                .AnyAsync(p => p.Id == patientId.Value && p.ClinicId == clinicId, ct);
+            if (!patientExists)
+            {
+                return NotFound(new { message = "Patient not found within clinic context." });
+            }
+        }
 
         var query = _context.ConsentAuditEvents
             .Include(a => a.Patient)
@@ -102,7 +119,7 @@ public class AuditExplorerController : BaseController
     }
 
     /// <summary>
-    /// Export consent audit events in CSV format for compliance and regulatory reporting.
+    /// Export consent audit events in CSV format with optional PII masking for compliance reporting.
     /// </summary>
     [HttpGet("consents/export")]
     [HasPermission(Permissions.PatientConsentsAudit)]
@@ -110,9 +127,25 @@ public class AuditExplorerController : BaseController
         [FromQuery] Guid? patientId,
         [FromQuery] DateTime? from,
         [FromQuery] DateTime? to,
+        [FromQuery] bool maskPii = true,
         CancellationToken ct = default)
     {
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+        {
+            return BadRequest(new { message = "'from' date cannot be after 'to' date." });
+        }
+
         var clinicId = ClinicId;
+
+        if (patientId.HasValue)
+        {
+            var patientExists = await _context.Patients
+                .AnyAsync(p => p.Id == patientId.Value && p.ClinicId == clinicId, ct);
+            if (!patientExists)
+            {
+                return NotFound(new { message = "Patient not found within clinic context." });
+            }
+        }
 
         var query = _context.ConsentAuditEvents
             .Include(a => a.Patient)
@@ -135,16 +168,17 @@ public class AuditExplorerController : BaseController
             .ToListAsync(ct);
 
         var sb = new StringBuilder();
-        sb.AppendLine("EventId,TimestampUtc,PatientMrn,PatientName,EventType,ConsentType,PerformedBy,Reason,IpAddress");
+        sb.AppendLine("EventId,TimestampUtc,PatientIdentifier,EventType,ConsentType,PerformedBy,Reason,IpAddress");
 
         foreach (var r in records)
         {
-            var patientName = r.Patient != null ? $"{r.Patient.FirstName} {r.Patient.LastName}".Replace(",", " ") : "Unknown";
-            var patientMrn = r.Patient?.FileNumber ?? r.Patient?.NationalId ?? "";
+            var rawPatientName = r.Patient != null ? $"{r.Patient.FirstName} {r.Patient.LastName}" : "Unknown";
+            var patientIdent = maskPii ? MaskName(rawPatientName) : rawPatientName.Replace(",", " ");
             var performedBy = r.PerformedByUser?.FullName.Replace(",", " ") ?? "System";
             var reason = (r.Reason ?? "").Replace(",", ";").Replace("\r\n", " ");
+            var ip = maskPii ? MaskIp(r.IpAddress) : (r.IpAddress ?? "N/A");
 
-            sb.AppendLine($"{r.Id},{r.Timestamp:u},{patientMrn},{patientName},{r.EventType},{r.ConsentType},{performedBy},{reason},{r.IpAddress}");
+            sb.AppendLine($"{r.Id},{r.Timestamp:u},{patientIdent},{r.EventType},{r.ConsentType},{performedBy},{reason},{ip}");
         }
 
         var bytes = Encoding.UTF8.GetBytes(sb.ToString());
@@ -152,8 +186,88 @@ public class AuditExplorerController : BaseController
     }
 
     /// <summary>
-    /// Apply or release Legal Hold on a patient consent or clinical record.
-    /// Prevents archival or soft deletion under active litigation or compliance inquiry.
+    /// Search and filter clinical AI decision audits across the clinic.
+    /// </summary>
+    [HttpGet("ai-decisions")]
+    [Authorize(Roles = $"{Roles.Doctor},{Roles.ClinicAdmin},{Roles.SuperAdmin}")]
+    public async Task<IActionResult> GetAiDecisionAudits(
+        [FromQuery] Guid? patientId,
+        [FromQuery] string? capability,
+        [FromQuery] string? provider,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+    {
+        if (from.HasValue && to.HasValue && from.Value > to.Value)
+        {
+            return BadRequest(new { message = "'from' date cannot be after 'to' date." });
+        }
+
+        if (page < 1) page = 1;
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var clinicId = ClinicId;
+
+        var query = _context.AiDecisionAudits
+            .Include(a => a.Patient)
+            .Include(a => a.Doctor)
+            .Where(a => a.ClinicId == clinicId)
+            .AsQueryable();
+
+        if (patientId.HasValue)
+            query = query.Where(a => a.PatientId == patientId.Value);
+
+        if (!string.IsNullOrWhiteSpace(capability))
+            query = query.Where(a => a.Capability == capability);
+
+        if (!string.IsNullOrWhiteSpace(provider))
+            query = query.Where(a => a.ProviderName == provider);
+
+        if (from.HasValue)
+            query = query.Where(a => a.CreatedAt >= from.Value);
+
+        if (to.HasValue)
+            query = query.Where(a => a.CreatedAt <= to.Value);
+
+        var total = await query.CountAsync(ct);
+
+        var items = await query
+            .OrderByDescending(a => a.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(a => new
+            {
+                a.Id,
+                a.Capability,
+                a.ProviderName,
+                a.ModelVersion,
+                a.PatientId,
+                PatientName = a.Patient != null ? $"{a.Patient.FirstName} {a.Patient.LastName}" : "Unknown",
+                PatientFileNumber = a.Patient != null ? (a.Patient.FileNumber ?? a.Patient.NationalId ?? "") : "",
+                a.DoctorId,
+                DoctorName = a.Doctor != null ? a.Doctor.FullName : "System",
+                ReviewStatus = a.ReviewStatus.ToString(),
+                a.ConfidenceScore,
+                a.OverrideReason,
+                a.CorrelationId,
+                a.CreatedAt,
+                a.ReviewedAt
+            })
+            .ToListAsync(ct);
+
+        return Success(new PagedResult<object>
+        {
+            Items = items.Cast<object>().ToList(),
+            TotalCount = total,
+            Page = page,
+            PageSize = pageSize
+        });
+    }
+
+    /// <summary>
+    /// Apply or release Legal Hold on a patient consent record.
+    /// Automatically generates an immutable ConsentAuditEvent documenting the action.
     /// </summary>
     [HttpPost("legal-hold")]
     [Authorize(Roles = $"{Roles.ClinicAdmin},{Roles.SuperAdmin}")]
@@ -163,7 +277,7 @@ public class AuditExplorerController : BaseController
     {
         if (request.IsLegalHold && string.IsNullOrWhiteSpace(request.Reason))
         {
-            return BadRequest("A valid legal hold reason is mandatory when placing a hold.");
+            return BadRequest(new { message = "A valid legal hold reason is mandatory when placing a hold." });
         }
 
         var clinicId = ClinicId;
@@ -171,10 +285,29 @@ public class AuditExplorerController : BaseController
             .FirstOrDefaultAsync(c => c.Id == request.ConsentRecordId && c.ClinicId == clinicId, ct);
 
         if (record == null)
-            return NotFound("Consent record not found.");
+            return NotFound(new { message = "Consent record not found." });
 
         record.IsLegalHold = request.IsLegalHold;
         record.LegalHoldReason = request.IsLegalHold ? request.Reason : null;
+
+        // Immutably audit the legal hold event
+        var auditEvent = new ConsentAuditEvent
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            ConsentRecordId = record.Id,
+            PatientId = record.PatientId,
+            EventType = ConsentAuditEventType.Verified,
+            ConsentType = record.ConsentType,
+            PerformedByUserId = CurrentUserId,
+            IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString(),
+            Reason = request.Reason,
+            Details = request.IsLegalHold
+                ? $"Active legal hold applied: {request.Reason}"
+                : $"Active legal hold released: {request.Reason}",
+            Timestamp = DateTime.UtcNow
+        };
+        _context.ConsentAuditEvents.Add(auditEvent);
 
         await _context.SaveChangesAsync(ct);
 
@@ -183,8 +316,23 @@ public class AuditExplorerController : BaseController
             consentId = record.Id,
             isLegalHold = record.IsLegalHold,
             legalHoldReason = record.LegalHoldReason,
+            auditEventId = auditEvent.Id,
             updatedAt = record.UpdatedAt
         }, request.IsLegalHold ? "Legal hold successfully placed." : "Legal hold successfully released.");
+    }
+
+    private static string MaskName(string name)
+    {
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return string.Join(" ", parts.Select(p => p.Length <= 1 ? p : $"{p[0]}***"));
+    }
+
+    private static string MaskIp(string? ip)
+    {
+        if (string.IsNullOrEmpty(ip)) return "0.0.0.0";
+        var parts = ip.Split('.');
+        if (parts.Length == 4) return $"{parts[0]}.{parts[1]}.***.***";
+        return "***";
     }
 }
 

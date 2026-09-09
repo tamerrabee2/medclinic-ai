@@ -61,7 +61,7 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.BillingUpdate, Permissions.BillingDelete,
             Permissions.UsersRead, Permissions.UsersManage,
             Permissions.ClinicsRead, Permissions.ClinicsManage,
-            Permissions.AIAssist, Permissions.AIAdmin,
+            Permissions.AIAssist, Permissions.AIAdmin, Permissions.AIAnalysis,
             Permissions.ReportsRead, Permissions.ReportsExport,
             Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
             Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
@@ -84,7 +84,7 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.BillingUpdate,
             Permissions.UsersRead, Permissions.UsersManage,
             Permissions.ClinicsRead, Permissions.ClinicsManage,
-            Permissions.AIAssist,
+            Permissions.AIAssist, Permissions.AIAnalysis,
             Permissions.ReportsRead, Permissions.ReportsExport,
             Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
             Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
@@ -99,7 +99,7 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.LabRead, Permissions.LabCreate, Permissions.LabUpdate,
             Permissions.RadiologyRead, Permissions.RadiologyCreate, Permissions.RadiologyUpdate,
             Permissions.BillingRead,
-            Permissions.AIAssist,
+            Permissions.AIAssist, Permissions.AIAnalysis,
             Permissions.ReportsRead,
             Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
             Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit

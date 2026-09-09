@@ -24,6 +24,7 @@ import {
   Zap,
   Globe
 } from 'lucide-react';
+import { AiConsentBlockingModal } from '@/components/ai/AiConsentBlockingModal';
 
 interface Message {
   id: string;
@@ -45,6 +46,11 @@ export default function AIAssistantPage() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>(undefined);
+
+  // Patient Context & Consent Gate State
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [selectedPatientName, setSelectedPatientName] = useState<string>('');
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
 
   // AI Configuration State
   const [showSettings, setShowSettings] = useState(false);
@@ -218,6 +224,24 @@ export default function AIAssistantPage() {
     setInput('');
     setLoading(true);
 
+    // Consent Anti-Bypass Guardrail: verify consent if patient context is attached
+    if (selectedPatientId) {
+      try {
+        const consentStatus = await ApiClient.getActiveConsent(selectedPatientId, 1);
+        if (!consentStatus?.hasActiveConsent) {
+          setIsConsentModalOpen(true);
+          setLoading(false);
+          return;
+        }
+      } catch (err: any) {
+        if (err.message?.includes('403') || err.message?.includes('consent_required')) {
+          setIsConsentModalOpen(true);
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
     try {
       // 1. If user provided a client API Key, use direct live agent query
       if (apiKey.trim()) {
@@ -233,7 +257,7 @@ export default function AIAssistantPage() {
         ]);
       } else {
         // 2. Otherwise query backend API
-        const res = await ApiClient.sendAIMessage(text, conversationId);
+        const res = await ApiClient.sendAIMessage(text, conversationId, selectedPatientId || undefined);
         if (res && res.messages) {
           setConversationId(res.id);
           const lastMsg = res.messages[res.messages.length - 1];
@@ -251,6 +275,12 @@ export default function AIAssistantPage() {
         }
       }
     } catch (err: any) {
+      if (err.message?.includes('consent_required') || err.message?.includes('403')) {
+        setIsConsentModalOpen(true);
+        setLoading(false);
+        return;
+      }
+
       // Diagnostic Clinical fallback
       setTimeout(() => {
         let responseContent =
@@ -301,8 +331,30 @@ export default function AIAssistantPage() {
           </p>
         </div>
 
-        {/* AI Key & Settings Button */}
-        <div className="flex items-center gap-2">
+        {/* Patient Context & AI Key Settings */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Patient Context Selector */}
+          <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs">
+            <User className="w-3.5 h-3.5 text-sky-400" />
+            <select
+              value={selectedPatientId}
+              onChange={(e) => {
+                const pId = e.target.value;
+                setSelectedPatientId(pId);
+                if (pId === 'P-10024') setSelectedPatientName('Tariq Al-Mansoor');
+                else if (pId === '1') setSelectedPatientName('Omar Al-Husseini');
+                else if (pId === '2') setSelectedPatientName('Nour Mostafa');
+                else setSelectedPatientName('');
+              }}
+              className="bg-transparent text-slate-200 text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="" className="bg-slate-900 text-slate-400">No Patient Context (General)</option>
+              <option value="P-10024" className="bg-slate-900 text-white">Tariq Al-Mansoor (P-10024)</option>
+              <option value="1" className="bg-slate-900 text-white">Omar Al-Husseini (MED-10024)</option>
+              <option value="2" className="bg-slate-900 text-white">Nour Mostafa (MED-10025)</option>
+            </select>
+          </div>
+
           <button
             onClick={() => setShowSettings(true)}
             className={`px-3 py-2 rounded-xl border text-xs font-semibold flex items-center gap-2 transition ${
@@ -607,6 +659,17 @@ export default function AIAssistantPage() {
           </div>
         </div>
       )}
+
+      {/* AI Consent Blocking Guard Modal */}
+      <AiConsentBlockingModal
+        isOpen={isConsentModalOpen}
+        onClose={() => setIsConsentModalOpen(false)}
+        patientId={selectedPatientId}
+        patientName={selectedPatientName}
+        onConsentGranted={() => {
+          setIsConsentModalOpen(false);
+        }}
+      />
     </div>
   );
 }

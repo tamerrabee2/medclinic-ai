@@ -78,11 +78,6 @@ public class AIService
     public async Task<ConversationDto> SendMessageAsync(
         Guid userId, SendMessageRequest req, CancellationToken ct = default)
     {
-        if (req.PatientContextId.HasValue && _consentGuard != null)
-        {
-            await _consentGuard.EnsureAiConsentAsync(req.PatientContextId.Value, ct);
-        }
-
         // 1. Resolve or create conversation
         AIConversation conversation;
         if (req.ConversationId.HasValue)
@@ -111,8 +106,15 @@ public class AIService
             _db.AIConversations.Add(conversation);
         }
 
-        // 2. Build history + patient context
-        var systemPrompt = await BuildSystemPromptAsync(req.PatientContextId, ct);
+        // 2. Strict AI Consent Enforcement (Guards against both request-level and conversation-level patient context)
+        var effectivePatientId = req.PatientContextId ?? conversation.PatientContextId;
+        if (effectivePatientId.HasValue && _consentGuard != null)
+        {
+            await _consentGuard.EnsureAiConsentAsync(effectivePatientId.Value, ct);
+        }
+
+        // 3. Build history + patient context
+        var systemPrompt = await BuildSystemPromptAsync(effectivePatientId, ct);
         var history = conversation.Messages
             .OrderBy(m => m.CreatedAt)
             .Select(m => new ChatMessage(m.Role, m.Content))
