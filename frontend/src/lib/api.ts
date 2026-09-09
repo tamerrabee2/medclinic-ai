@@ -195,4 +195,109 @@ export class ApiClient {
       body: JSON.stringify(annotation),
     });
   }
+
+  // ── Phase 12: Consent & Compliance ──────────────────────────────────────
+  public static async getPatientConsents(patientId: string) {
+    const token = this.getToken();
+    if (token?.startsWith('demo_')) {
+      return [
+        {
+          id: 'consent-demo-1',
+          patientId,
+          consentType: 'GeneralCare',
+          isGranted: true,
+          grantedAt: new Date(Date.now() - 30 * 86400000).toISOString(),
+          expiresAt: null,
+          notes: 'Standard admission consent signed by patient.',
+          isActive: true,
+          isLegalHold: false
+        },
+        {
+          id: 'consent-demo-2',
+          patientId,
+          consentType: 'AiAssistedCare',
+          isGranted: true,
+          grantedAt: new Date(Date.now() - 5 * 86400000).toISOString(),
+          expiresAt: new Date(Date.now() + 360 * 86400000).toISOString(),
+          notes: 'Informed consent for AI diagnostic biomarker inference and radiology CDS.',
+          isActive: true,
+          isLegalHold: false
+        },
+        {
+          id: 'consent-demo-3',
+          patientId,
+          consentType: 'Telemedicine',
+          isGranted: true,
+          grantedAt: new Date(Date.now() - 60 * 86400000).toISOString(),
+          expiresAt: null,
+          notes: 'Virtual consultation and remote triage authorization.',
+          isActive: true,
+          isLegalHold: false
+        }
+      ];
+    }
+    return this.request(`/api/v1/patients/${patientId}/consents`);
+  }
+
+  public static async getActiveConsent(patientId: string, consentType: string | number) {
+    const token = this.getToken();
+    if (token?.startsWith('demo_')) {
+      return { hasActiveConsent: true, consentType };
+    }
+    return this.request(`/api/v1/patients/${patientId}/consents/active/${consentType}`);
+  }
+
+  public static async recordConsent(patientId: string, payload: {
+    consentType: number;
+    isGranted: boolean;
+    expiresAt?: string | null;
+    notes?: string | null;
+  }) {
+    return this.request(`/api/v1/patients/${patientId}/consents`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  public static async revokeConsent(patientId: string, consentId: string, reason: string) {
+    return this.request(`/api/v1/patients/${patientId}/consents/${consentId}/revoke`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  public static async getConsentAuditTrail(patientId: string, consentId?: string) {
+    const params = new URLSearchParams();
+    if (consentId) params.append('consentId', consentId);
+    return this.request(`/api/v1/patients/${patientId}/consents/audit?${params.toString()}`);
+  }
+
+  public static async getConsentAuditExplorer(filters?: {
+    patientId?: string;
+    eventType?: number;
+    consentType?: number;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (filters?.patientId) params.append('patientId', filters.patientId);
+    if (filters?.eventType !== undefined) params.append('eventType', String(filters.eventType));
+    if (filters?.consentType !== undefined) params.append('consentType', String(filters.consentType));
+    if (filters?.from) params.append('from', filters.from);
+    if (filters?.to) params.append('to', filters.to);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.pageSize) params.append('pageSize', String(filters.pageSize));
+
+    return this.request(`/api/v1/audit/explorer/consents?${params.toString()}`);
+  }
+
+  public static async setLegalHold(consentRecordId: string, isLegalHold: boolean, reason?: string) {
+    return this.request('/api/v1/audit/explorer/legal-hold', {
+      method: 'POST',
+      body: JSON.stringify({ consentRecordId, isLegalHold, reason }),
+    });
+  }
 }
+

@@ -22,9 +22,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Stethoscope,
-  Share2,
-  Printer
+  Printer,
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
+import { PatientConsentsTab } from '@/components/patients/PatientConsentsTab';
 
 interface PatientRecord {
   id: string;
@@ -136,7 +138,7 @@ const PATIENT_DATA: PatientRecord = {
 export default function PatientDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'timeline' | 'soap' | 'prescriptions' | 'billing'>('timeline');
+  const [activeTab, setActiveTab] = useState<'timeline' | 'soap' | 'prescriptions' | 'billing' | 'consents'>('timeline');
 
   return (
     <div className="space-y-6">
@@ -207,9 +209,18 @@ export default function PatientDetailPage() {
           </div>
 
           <div className="flex flex-col items-start lg:items-end gap-1.5 text-xs">
-            <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Active EHR File</span>
+            <div className="flex items-center gap-2">
+              <div className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-semibold flex items-center gap-1.5">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Active EHR File</span>
+              </div>
+              <button
+                onClick={() => setActiveTab('consents')}
+                className="px-3 py-1 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 font-semibold flex items-center gap-1.5 hover:bg-sky-500/20 transition cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>AI Consent: Active</span>
+              </button>
             </div>
             <div className="text-slate-400">{PATIENT_DATA.insurance}</div>
           </div>
@@ -344,6 +355,19 @@ export default function PatientDetailPage() {
           <span>Financial Ledger</span>
           {activeTab === 'billing' && (
             <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-sky-400 rounded-full" />
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('consents')}
+          className={`pb-3 transition relative flex items-center gap-2 ${
+            activeTab === 'consents' ? 'text-teal-400' : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>Consents & Compliance</span>
+          {activeTab === 'consents' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-teal-400 rounded-full" />
           )}
         </button>
       </div>
@@ -539,6 +563,11 @@ export default function PatientDetailPage() {
             </span>
           </div>
         </div>
+      )}
+
+      {/* Tab Content 5: Consents & Regulatory Governance */}
+      {activeTab === 'consents' && (
+        <PatientConsentsTab patientId={(params?.id as string) || PATIENT_DATA.id} />
       )}
     </div>
   );

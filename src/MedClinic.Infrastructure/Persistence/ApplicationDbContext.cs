@@ -143,6 +143,11 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
             {
                 throw new InvalidOperationException("Hard deletion of consent compliance records is prohibited. Use revocation or soft delete.");
             }
+
+            if (entry.Entity.IsLegalHold && (entry.State == EntityState.Deleted || entry.Entity.IsDeleted))
+            {
+                throw new InvalidOperationException($"Entity {entry.Entity.GetType().Name} ({entry.Entity.Id}) is subject to an active legal hold and cannot be deleted or archived.");
+            }
         }
 
         return await base.SaveChangesAsync(cancellationToken);

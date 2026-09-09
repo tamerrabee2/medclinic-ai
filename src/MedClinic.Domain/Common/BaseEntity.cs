@@ -10,4 +10,9 @@ public abstract class BaseEntity
     public bool IsDeleted { get; set; } = false;
     public DateTime? DeletedAt { get; set; }
     public Guid? DeletedBy { get; set; }
+
+    // Compliance & Retention Policy Foundation
+    public bool IsLegalHold { get; set; } = false;
+    public string? LegalHoldReason { get; set; }
+    public DateTime? RetentionExpiresAt { get; set; }
 }

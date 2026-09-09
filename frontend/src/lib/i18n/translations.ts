@@ -85,6 +85,19 @@ export interface TranslationDictionary {
   allergies: string;
   contraindications: string;
   physicianSignOff: string;
+
+  // Phase 12: Consents & Compliance Governance
+  consentsAndCompliance: string;
+  consentActive: string;
+  consentExpired: string;
+  consentRevoked: string;
+  consentMissing: string;
+  grantConsent: string;
+  revokeConsent: string;
+  revocationReason: string;
+  legalHold: string;
+  aiConsentRequired: string;
+  aiConsentBlockedDesc: string;
 }
 
 export const translations: Record<Language, TranslationDictionary> = {
@@ -170,9 +183,22 @@ export const translations: Record<Language, TranslationDictionary> = {
     chiefComplaint: 'Chief Complaint',
     diagnoses: 'Diagnoses',
     medications: 'Medications',
-    allergies: 'Allergies Alert',
-    contraindications: 'Contraindication Guardrail',
-    physicianSignOff: 'Physician Official Sign-off'
+    allergies: 'Allergy Alerts',
+    contraindications: 'Safety Drug-Drug Checks',
+    physicianSignOff: 'Attending Physician Sign-off',
+
+    // Phase 12: Consents & Compliance Governance
+    consentsAndCompliance: 'Consents & Compliance',
+    consentActive: 'Active',
+    consentExpired: 'Expired',
+    consentRevoked: 'Revoked',
+    consentMissing: 'Not Granted',
+    grantConsent: 'Record Consent',
+    revokeConsent: 'Revoke Consent',
+    revocationReason: 'Revocation Reason',
+    legalHold: 'Legal Hold',
+    aiConsentRequired: 'AI Clinical Consent Required',
+    aiConsentBlockedDesc: 'Active patient consent for AI-assisted diagnostic tools is required before proceeding.'
   },
   ar: {
     // Navigation & Shell
@@ -258,6 +284,19 @@ export const translations: Record<Language, TranslationDictionary> = {
     medications: 'الأدوية الحالية',
     allergies: 'تنبيه الحساسية',
     contraindications: 'حاجز منع التداخلات الدوائية',
-    physicianSignOff: 'اعتماد وتوقيع الطبيب الرسمي'
+    physicianSignOff: 'اعتماد وتوقيع الطبيب الرسمي',
+
+    // Phase 12: Consents & Compliance Governance
+    consentsAndCompliance: 'إدارة الموافقات والامتثال',
+    consentActive: 'سارية',
+    consentExpired: 'منتهية',
+    consentRevoked: 'ملغاة',
+    consentMissing: 'غير ممنوحة',
+    grantConsent: 'تسجيل موافقة',
+    revokeConsent: 'إلغاء الموافقة',
+    revocationReason: 'سبب إلغاء الموافقة',
+    legalHold: 'حجز قانوني',
+    aiConsentRequired: 'موافقة الذكاء الاصطناعي السريرية مطلوبة',
+    aiConsentBlockedDesc: 'يتطلب تفعيل أدوات الذكاء الاصطناعي السريرية موافقة معتمدة من المريض قبل المتابعة.'
   }
 };

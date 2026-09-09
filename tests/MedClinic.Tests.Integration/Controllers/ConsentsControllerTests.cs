@@ -716,5 +716,35 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
                 .WithMessage("*Hard deletion of consent compliance records is prohibited*");
         }
     }
+
+    [Fact]
+    public async Task Compliance_LegalHold_PreventsSoftDeleteOrArchival()
+    {
+        var (clinicAId, _, patientAId, _, _, _, _) = await SeedConsentDataAsync();
+
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var consent = new ConsentRecord
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicAId,
+            PatientId = patientAId,
+            ConsentType = ConsentType.Research,
+            IsGranted = true,
+            GrantedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            IsLegalHold = true,
+            LegalHoldReason = "Pending compliance audit subpoena"
+        };
+        db.ConsentRecords.Add(consent);
+        await db.SaveChangesAsync();
+
+        // Attempting soft-delete on record with active LegalHold must be rejected
+        consent.IsDeleted = true;
+        var act = async () => await db.SaveChangesAsync();
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*subject to an active legal hold and cannot be deleted or archived*");
+    }
 }
 
