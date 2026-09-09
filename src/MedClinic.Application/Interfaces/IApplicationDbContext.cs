@@ -31,6 +31,7 @@ public interface IApplicationDbContext
     DbSet<Payment> Payments { get; }
     DbSet<Notification> Notifications { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<ConsentRecord> ConsentRecords { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

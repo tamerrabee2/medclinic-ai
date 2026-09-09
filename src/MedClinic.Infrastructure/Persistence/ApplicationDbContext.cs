@@ -73,6 +73,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
     // System
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+    public DbSet<ConsentRecord> ConsentRecords { get; set; } = null!;
 
     // ── Model Configuration ───────────────────────────────────────────────────────
 
