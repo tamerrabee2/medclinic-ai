@@ -25,6 +25,7 @@ public interface IApplicationDbContext
     DbSet<AIAnalysis> AIAnalyses { get; }
     DbSet<AIConversation> AIConversations { get; }
     DbSet<AIConversationMessage> AIConversationMessages { get; }
+    DbSet<AiDecisionAudit> AiDecisionAudits { get; }
     DbSet<Invoice> Invoices { get; }
     DbSet<InvoiceItem> InvoiceItems { get; }
     DbSet<Payment> Payments { get; }

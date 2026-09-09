@@ -1,3 +1,4 @@
+using MedClinic.Application.Features.AI.Services;
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
 using MedClinic.Infrastructure.AI;
@@ -78,6 +79,7 @@ public static partial class DependencyInjection
         services.AddHttpContextAccessor();
         services.AddScoped<IJwtService, JwtService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IAiDecisionAuditService, AiDecisionAuditService>();
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
         services.AddScoped<MedClinic.Application.Common.Interfaces.ICurrentUserService>(sp => sp.GetRequiredService<TenantContext>());

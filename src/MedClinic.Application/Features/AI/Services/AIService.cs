@@ -12,17 +12,20 @@ public class AIService
     private readonly ITenantContext       _tenant;
     private readonly IAIProvider          _ai;
     private readonly ILogger<AIService>   _logger;
+    private readonly IAiDecisionAuditService? _auditService;
 
     public AIService(
         IApplicationDbContext db,
         ITenantContext tenant,
         IAIProvider ai,
-        ILogger<AIService> logger)
+        ILogger<AIService> logger,
+        IAiDecisionAuditService? auditService = null)
     {
-        _db     = db;
-        _tenant = tenant;
-        _ai     = ai;
-        _logger = logger;
+        _db           = db;
+        _tenant       = tenant;
+        _ai           = ai;
+        _logger       = logger;
+        _auditService = auditService;
     }
 
     // ── Conversations ────────────────────────────────────────────────────────
@@ -158,6 +161,20 @@ public class AIService
 
         await _db.SaveChangesAsync(ct);
 
+        if (_auditService != null)
+        {
+            await _auditService.RecordDecisionAsync(new RecordAiDecisionRequest
+            {
+                Capability = "ClinicalChat",
+                ProviderName = _ai.GetType().Name,
+                PatientId = conversation.PatientContextId,
+                DoctorId = userId,
+                InputPayload = req.Message,
+                OutputPayload = aiResponse.Content,
+                CorrelationId = conversation.Id.ToString()
+            }, ct);
+        }
+
         string? patientName = null;
         if (conversation.PatientContextId.HasValue)
         {
@@ -223,6 +240,20 @@ public class AIService
 
         var result = await _ai.AnalyzeLabResultsAsync(input, ct);
 
+        if (_auditService != null)
+        {
+            await _auditService.RecordDecisionAsync(new RecordAiDecisionRequest
+            {
+                Capability = "LabAnalysis",
+                ProviderName = _ai.GetType().Name,
+                PatientId = labResult.LabOrder.PatientId,
+                DoctorId = userId,
+                InputPayload = $"LabResultId: {labResult.Id}, Items: {labResult.Items.Count}",
+                OutputPayload = result.Summary,
+                CorrelationId = labResult.Id.ToString()
+            }, ct);
+        }
+
         return new LabAnalysisResultDto(
             labResult.Id,
             result.Summary,
@@ -264,6 +295,20 @@ public class AIService
 
         var result = await _ai.SummarizePatientAsync(input, ct);
 
+        if (_auditService != null)
+        {
+            await _auditService.RecordDecisionAsync(new RecordAiDecisionRequest
+            {
+                Capability = "PatientSummary",
+                ProviderName = _ai.GetType().Name,
+                PatientId = patient.Id,
+                DoctorId = userId,
+                InputPayload = $"PatientId: {patient.Id}, LabTrends: {req.IncludeLabTrends}, Radiology: {req.IncludeRadiology}",
+                OutputPayload = result.Summary,
+                CorrelationId = patient.Id.ToString()
+            }, ct);
+        }
+
         return new PatientSummaryDto(
             patient.Id,
             $"{patient.FirstName} {patient.LastName}",
@@ -304,6 +349,21 @@ public class AIService
         image.AIAnalysisStatus = "Completed";
         image.AIAnalyzedAt     = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
+
+        if (_auditService != null)
+        {
+            await _auditService.RecordDecisionAsync(new RecordAiDecisionRequest
+            {
+                Capability = "ImageAnalysis",
+                ProviderName = _ai.GetType().Name,
+                PatientId = image.RadiologyStudy.PatientId,
+                DoctorId = userId,
+                InputPayload = $"ImageId: {image.Id}, Modality: {input.Modality}, Context: {req.ClinicalContext}",
+                OutputPayload = result.Findings != null ? string.Join("; ", result.Findings) : (result.Summary ?? string.Empty),
+                ConfidenceScore = (double?)result.Confidence,
+                CorrelationId = image.Id.ToString()
+            }, ct);
+        }
 
         return new ImageAnalysisResultDto(
             image.Id,

@@ -167,6 +167,16 @@ public class PrescriptionsController : BaseController
             if (!visitOk) return BadRequest("Visit does not match patient or clinic.");
         }
 
+        if (request.AiDecisionAuditId.HasValue)
+        {
+            var audit = await _context.AiDecisionAudits
+                .FirstOrDefaultAsync(a => a.Id == request.AiDecisionAuditId.Value && a.ClinicId == clinicId, ct);
+            if (audit != null && audit.ReviewStatus == Domain.Enums.AiReviewStatus.Rejected)
+            {
+                return BadRequest("Cannot issue a prescription based on a rejected AI recommendation.");
+            }
+        }
+
         var rx = new Prescription
         {
             ClinicId         = clinicId,
@@ -372,7 +382,8 @@ public record CreatePrescriptionRequest(
     DateTime?                      ExpiresAt,
     string?                        DiagnosisSummary,
     string?                        Notes,
-    List<PrescriptionItemRequest>? Items);
+    List<PrescriptionItemRequest>? Items,
+    Guid?                          AiDecisionAuditId = null);
 
 public record UpdatePrescriptionRequest(
     string?   DiagnosisSummary,
