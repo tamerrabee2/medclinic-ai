@@ -64,6 +64,7 @@ public class AuthController : BaseController
     /// <summary>Login and get JWT tokens</summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth-login-policy")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
@@ -144,6 +145,7 @@ public class AuthController : BaseController
     /// <summary>Refresh access token</summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth-refresh-policy")]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
         var storedToken = await _context.RefreshTokens
@@ -170,6 +172,7 @@ public class AuthController : BaseController
     /// <summary>Forgot password — generate reset token and dispatch link</summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth-forgot-password-policy")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);

@@ -44,12 +44,13 @@ builder.Services.AddInfrastructure(config);
 builder.Services.AddApplication();
 
 // ──────────────────────────────────────────────────────────────────
-// RATE LIMITING POLICIES (P0)
+// RATE LIMITING POLICIES (P0 / PR-3 Hardening)
 // ──────────────────────────────────────────────────────────────────
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
+    // Fallback general auth policy
     options.AddPolicy("auth-policy", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
@@ -61,26 +62,78 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 
+    // Discrete Login policy: 5 requests / min per IP
+    options.AddPolicy("auth-login-policy", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    // Discrete Forgot Password policy: 3 requests / min per IP
+    options.AddPolicy("auth-forgot-password-policy", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    // Discrete Refresh Token policy: 10 requests / min per IP
+    options.AddPolicy("auth-refresh-policy", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    // Claim-based AI policy: 30 requests / min partitioned by ClinicId or UserId claim
     options.AddPolicy("ai-policy", httpContext =>
-        RateLimitPartition.GetSlidingWindowLimiter(
-            partitionKey: httpContext.Request.Headers["X-Clinic-Id"].ToString() ?? "default-clinic",
+    {
+        var partitionKey = httpContext.User.FindFirst("clinic_id")?.Value
+            ?? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+
+        return RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: partitionKey,
             factory: _ => new SlidingWindowRateLimiterOptions
             {
                 PermitLimit = 30,
                 Window = TimeSpan.FromMinutes(1),
                 SegmentsPerWindow = 3,
                 QueueLimit = 0
-            }));
+            });
+    });
 
+    // Claim-based Upload policy: 15 requests / min partitioned by ClinicId or UserId claim
     options.AddPolicy("upload-policy", httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+    {
+        var partitionKey = httpContext.User.FindFirst("clinic_id")?.Value
+            ?? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? httpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: partitionKey,
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 15,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
-            }));
+            });
+    });
 });
 
 // ──────────────────────────────────────────────────────────────────
