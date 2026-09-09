@@ -63,6 +63,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
     public DbSet<AIAnalysis> AIAnalyses { get; set; } = null!;
     public DbSet<AIConversation> AIConversations { get; set; } = null!;
     public DbSet<AIConversationMessage> AIConversationMessages { get; set; } = null!;
+    public DbSet<AiDecisionAudit> AiDecisionAudits { get; set; } = null!;
 
     // Billing
     public DbSet<Invoice> Invoices { get; set; } = null!;
@@ -106,7 +107,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
 
     private void SetTenantFilter<T>(ModelBuilder builder) where T : TenantEntity
     {
-        builder.Entity<T>().HasQueryFilter(e => !e.IsDeleted && (IsSuperAdmin || !CurrentClinicId.HasValue || e.ClinicId == CurrentClinicId));
+        builder.Entity<T>().HasQueryFilter(e => !e.IsDeleted && (IsSuperAdmin || _tenantContext == null || e.ClinicId == CurrentClinicId));
     }
 
     private static void SetSoftDeleteFilter<T>(ModelBuilder builder) where T : BaseEntity

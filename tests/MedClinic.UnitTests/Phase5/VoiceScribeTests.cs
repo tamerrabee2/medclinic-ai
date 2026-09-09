@@ -2,6 +2,8 @@ using FluentAssertions;
 using MedClinic.Application.Features.VoiceScribe.Commands;
 using MedClinic.Application.Common.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using Xunit;
 
@@ -16,7 +18,7 @@ public class VoiceScribeTests
         var context = MockDbContext.CreateWithVoiceNote(status: VoiceNoteStatus.Completed);
         var currentUser = MockCurrentUser.Create();
         var aiProvider = new Mock<IAIProvider>();
-        var handler = new TranscribeVoiceNoteCommandHandler(context, currentUser, aiProvider.Object);
+        var handler = new TranscribeVoiceNoteCommandHandler(context.Db, currentUser, aiProvider.Object);
 
         // Act
         var result = await handler.Handle(new TranscribeVoiceNoteCommand(context.VoiceNoteId), default);
@@ -40,7 +42,7 @@ public class VoiceScribeTests
         aiProvider.Setup(a => a.ParseClinicalNoteFromTranscriptAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new StructuredClinicalNote("Chest pain", "2-day history", "Normal exam", "Possible GERD", "PPI trial"));
 
-        var handler = new TranscribeVoiceNoteCommandHandler(context, currentUser, aiProvider.Object);
+        var handler = new TranscribeVoiceNoteCommandHandler(context.Db, currentUser, aiProvider.Object);
 
         // Act
         var result = await handler.Handle(new TranscribeVoiceNoteCommand(context.VoiceNoteId), default);
@@ -69,5 +71,46 @@ public class VoiceScribeTests
         };
         note.DoctorApproved.Should().BeTrue();
         note.DoctorApprovedAt.Should().NotBeNull();
+    }
+}
+
+public static class MockDbContext
+{
+    public class TestContext
+    {
+        public ApplicationDbContext Db { get; set; } = null!;
+        public Guid VoiceNoteId { get; set; }
+    }
+
+    public static TestContext CreateWithVoiceNote(VoiceNoteStatus status)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        var db = new ApplicationDbContext(options);
+        var clinicId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var note = new VoiceNote
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            PatientId = Guid.NewGuid(),
+            DoctorId = Guid.NewGuid(),
+            AudioFileUrl = "https://storage/audio.mp3",
+            Status = status
+        };
+        db.VoiceNotes.Add(note);
+        db.SaveChanges();
+        return new TestContext { Db = db, VoiceNoteId = note.Id };
+    }
+}
+
+public static class MockCurrentUser
+{
+    public static ICurrentUserService Create()
+    {
+        var mock = new Mock<ICurrentUserService>();
+        mock.Setup(m => m.ClinicId).Returns(Guid.Parse("00000000-0000-0000-0000-000000000001"));
+        mock.Setup(m => m.UserId).Returns(Guid.NewGuid());
+        return mock.Object;
     }
 }

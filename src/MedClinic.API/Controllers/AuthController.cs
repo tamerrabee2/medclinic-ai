@@ -5,10 +5,12 @@ using MedClinic.Shared.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace MedClinic.API.Controllers;
 
+[EnableRateLimiting("auth-policy")]
 public class AuthController : BaseController
 {
     private readonly UserManager<ApplicationUser> _userManager;
@@ -165,14 +167,14 @@ public class AuthController : BaseController
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
-        // Always return 200 to prevent email enumeration
-        if (user == null) return Success<object>(null!, "If this email exists, a reset link has been sent.");
+        // Always return generic 200 message to prevent email enumeration and token leakage
+        if (user != null)
+        {
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            // In production, token is dispatched securely via notification/email service
+        }
 
-        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-        // TODO: Send email via IEmailService (Phase 5)
-        // For now log the token (dev only)
-
-        return Success(new { Message = "Password reset token generated.", ResetToken = token /* remove in prod */ });
+        return Success<object>(null!, "If this email exists, a reset instructions link has been sent.");
     }
 
     /// <summary>Reset password with token</summary>

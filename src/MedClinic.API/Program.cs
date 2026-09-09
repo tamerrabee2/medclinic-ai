@@ -1,20 +1,87 @@
+using System.Threading.RateLimiting;
 using MedClinic.API.Middleware;
 using MedClinic.Application;
 using MedClinic.Application.Interfaces;
 using MedClinic.Infrastructure;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Infrastructure.Persistence.Seeder;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 var config  = builder.Configuration;
 
+// Max Request Body Limit (25MB) for file uploads and payloads
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 25 * 1024 * 1024; // 25 MB
+});
+
+// ──────────────────────────────────────────────────────────────────
+// STARTUP ENVIRONMENT VALIDATION (P0)
+// ──────────────────────────────────────────────────────────────────
+if (builder.Environment.IsProduction())
+{
+    var jwtKey = config["Jwt:Key"] ?? config["Jwt:Secret"];
+    if (string.IsNullOrWhiteSpace(jwtKey) || jwtKey.Length < 32 || jwtKey.Contains("CHANGE_ME") || jwtKey.Contains("DEV_ONLY"))
+    {
+        throw new InvalidOperationException("CRITICAL: Production startup failed. JWT key is missing, weak (< 32 chars), or using an insecure default dev key.");
+    }
+
+    var aiProvider = config["AI:Provider"];
+    var allowMock = config.GetValue<bool>("AllowMockInProduction");
+    if (string.Equals(aiProvider, "Mock", StringComparison.OrdinalIgnoreCase) && !allowMock)
+    {
+        throw new InvalidOperationException("CRITICAL: Production startup failed. Mock AI provider cannot be used in Production without explicit AllowMockInProduction flag.");
+    }
+}
+
 // ──────────────────────────────────────────────────────────────────
 // INFRASTRUCTURE & APPLICATION DI
 // ──────────────────────────────────────────────────────────────────
 builder.Services.AddInfrastructure(config);
 builder.Services.AddApplication();
+
+// ──────────────────────────────────────────────────────────────────
+// RATE LIMITING POLICIES (P0)
+// ──────────────────────────────────────────────────────────────────
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth-policy", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("ai-policy", httpContext =>
+        RateLimitPartition.GetSlidingWindowLimiter(
+            partitionKey: httpContext.Request.Headers["X-Clinic-Id"].ToString() ?? "default-clinic",
+            factory: _ => new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 3,
+                QueueLimit = 0
+            }));
+
+    options.AddPolicy("upload-policy", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 15,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+});
 
 // ──────────────────────────────────────────────────────────────────
 // AUTHORIZATION POLICIES
@@ -118,11 +185,21 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "MedClinic AI v1"));
 }
 
+// Security Headers Middleware (P1)
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+    context.Response.Headers.Append("X-Frame-Options", "DENY");
+    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
+    await next();
+});
+
 app.UseHttpsRedirection();
 app.UseCors();
+app.UseRateLimiter();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseMiddleware<TenantMiddleware>();
 app.UseAuthentication();
+app.UseMiddleware<TenantMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health");

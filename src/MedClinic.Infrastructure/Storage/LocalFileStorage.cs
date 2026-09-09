@@ -21,8 +21,19 @@ public class LocalFileStorage : IFileStorage, IFileStorageService
         Directory.CreateDirectory(_basePath);
     }
 
+    private static readonly HashSet<string> _disallowedExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".exe", ".dll", ".bat", ".cmd", ".sh", ".ps1", ".vbs", ".js", ".jsp", ".php", ".asp", ".aspx", ".cgi", ".msi", ".com", ".scr"
+    };
+
     public async Task<string> UploadAsync(Stream stream, string fileName, string contentType, string folder, CancellationToken cancellationToken = default)
     {
+        var ext = Path.GetExtension(fileName);
+        if (_disallowedExtensions.Contains(ext))
+        {
+            throw new ArgumentException($"Files with extension '{ext}' are not permitted for upload.");
+        }
+
         var uniqueName = $"{Guid.NewGuid()}_{Path.GetFileName(fileName)}";
         var path = Path.Combine(folder, uniqueName);
         return await UploadAsync(path, stream, contentType, cancellationToken);
@@ -30,6 +41,12 @@ public class LocalFileStorage : IFileStorage, IFileStorageService
 
     public async Task<string> UploadAsync(string path, Stream stream, string contentType, CancellationToken ct = default)
     {
+        var ext = Path.GetExtension(path);
+        if (_disallowedExtensions.Contains(ext))
+        {
+            throw new ArgumentException($"Files with extension '{ext}' are not permitted for upload.");
+        }
+
         var fullPath = Path.Combine(_basePath, path.Replace('/', Path.DirectorySeparatorChar));
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))
@@ -51,10 +68,16 @@ public class LocalFileStorage : IFileStorage, IFileStorageService
 
     public async Task<string> SaveAsync(IFormFile file, string folder, CancellationToken ct = default)
     {
+        var ext = Path.GetExtension(file.FileName);
+        if (_disallowedExtensions.Contains(ext))
+        {
+            throw new ArgumentException($"Files with extension '{ext}' are not permitted for upload.");
+        }
+
         var dir = Path.Combine(_basePath, folder);
         Directory.CreateDirectory(dir);
 
-        var uniqueName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var uniqueName = $"{Guid.NewGuid()}{ext}";
         var fullPath   = Path.Combine(dir, uniqueName);
 
         await using var stream = new FileStream(fullPath, FileMode.Create);

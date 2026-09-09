@@ -42,4 +42,4 @@ appsettings.Production.json
 
 # Uploads
 uploads/
-storage/
+/storage/
