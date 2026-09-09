@@ -58,4 +58,10 @@ public static class Permissions
     // ── Reports ───────────────────────────────────────────────────────────
     public const string ReportsRead   = "Reports.Read";
     public const string ReportsExport = "Reports.Export";
+
+    // ── Patient Consents (Phase 12 / Compliance) ──────────────────────────
+    public const string PatientConsentsView   = "PatientConsents.View";
+    public const string PatientConsentsManage = "PatientConsents.Manage";
+    public const string PatientConsentsRevoke = "PatientConsents.Revoke";
+    public const string PatientConsentsAudit  = "PatientConsents.Audit";
 }

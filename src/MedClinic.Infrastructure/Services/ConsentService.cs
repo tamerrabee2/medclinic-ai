@@ -26,6 +26,7 @@ public sealed class ConsentService : IConsentService
         DateTime? expiresAt,
         string? notes,
         Guid? witnessUserId,
+        Guid? grantedByUserId,
         string? ipAddress,
         CancellationToken ct = default)
     {
@@ -48,12 +49,31 @@ public sealed class ConsentService : IConsentService
             GrantedAt = DateTime.UtcNow,
             ExpiresAt = expiresAt,
             WitnessUserId = witnessUserId,
+            GrantedByUserId = grantedByUserId,
             IpAddress = ipAddress,
             Notes = notes?.Trim(),
             CreatedAt = DateTime.UtcNow
         };
 
         _db.ConsentRecords.Add(consent);
+
+        var auditEvent = new ConsentAuditEvent
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            ConsentRecordId = consent.Id,
+            PatientId = patientId,
+            EventType = ConsentAuditEventType.Granted,
+            ConsentType = type,
+            PerformedByUserId = grantedByUserId,
+            IpAddress = ipAddress,
+            Details = $"Consent granted for {type}. Witness: {witnessUserId?.ToString() ?? "None"}.",
+            Timestamp = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.ConsentAuditEvents.Add(auditEvent);
+
         await _db.SaveChangesAsync(ct);
 
         return Map(consent);
@@ -63,6 +83,8 @@ public sealed class ConsentService : IConsentService
         Guid patientId,
         Guid consentId,
         string reason,
+        Guid? revokedByUserId,
+        string? ipAddress = null,
         CancellationToken ct = default)
     {
         var clinicId = CurrentClinicId;
@@ -74,10 +96,38 @@ public sealed class ConsentService : IConsentService
             .FirstOrDefaultAsync(x => x.Id == consentId && x.PatientId == patientId && x.ClinicId == clinicId, ct)
             ?? throw new KeyNotFoundException("Consent record not found.");
 
+        // Guard against mutating an already-revoked record
+        if (!consent.IsGranted || consent.RevokedAt != null)
+            throw new InvalidOperationException("A revoked consent record cannot be modified or re-revoked.");
+
+        var trimmedReason = reason.Trim();
+        var now = DateTime.UtcNow;
+
         consent.IsGranted = false;
-        consent.ExpiresAt = DateTime.UtcNow;
-        consent.Notes = $"Revoked: {reason.Trim()}";
-        consent.UpdatedAt = DateTime.UtcNow;
+        consent.ExpiresAt = now;
+        consent.RevokedAt = now;
+        consent.RevokedByUserId = revokedByUserId;
+        consent.RevocationReason = trimmedReason;
+        consent.Notes = $"Revoked: {trimmedReason}";
+        consent.UpdatedAt = now;
+
+        var auditEvent = new ConsentAuditEvent
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            ConsentRecordId = consent.Id,
+            PatientId = patientId,
+            EventType = ConsentAuditEventType.Revoked,
+            ConsentType = consent.ConsentType,
+            PerformedByUserId = revokedByUserId,
+            IpAddress = ipAddress,
+            Reason = trimmedReason,
+            Details = $"Consent revoked for {consent.ConsentType}. Reason: {trimmedReason}",
+            Timestamp = now,
+            CreatedAt = now
+        };
+
+        _db.ConsentAuditEvents.Add(auditEvent);
 
         await _db.SaveChangesAsync(ct);
 
@@ -98,16 +148,7 @@ public sealed class ConsentService : IConsentService
         return await _db.ConsentRecords
             .Where(x => x.PatientId == patientId && x.ClinicId == clinicId)
             .OrderByDescending(x => x.GrantedAt)
-            .Select(x => new ConsentDto(
-                x.Id,
-                x.PatientId,
-                x.ConsentType,
-                x.IsGranted,
-                x.GrantedAt,
-                x.ExpiresAt,
-                x.WitnessUserId,
-                x.Notes,
-                x.IsGranted && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow)))
+            .Select(x => Map(x))
             .ToListAsync(ct);
     }
 
@@ -128,7 +169,42 @@ public sealed class ConsentService : IConsentService
                         && x.ClinicId == clinicId
                         && x.ConsentType == type
                         && x.IsGranted
+                        && x.RevokedAt == null
                         && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow), ct);
+    }
+
+    public async Task<IReadOnlyList<ConsentAuditEventDto>> GetAuditTrailAsync(
+        Guid patientId,
+        Guid? consentId = null,
+        CancellationToken ct = default)
+    {
+        var clinicId = CurrentClinicId;
+
+        var patientExists = await _db.Patients
+            .AnyAsync(x => x.Id == patientId && x.ClinicId == clinicId, ct);
+        if (!patientExists)
+            throw new KeyNotFoundException("Patient not found.");
+
+        var query = _db.ConsentAuditEvents
+            .Where(x => x.PatientId == patientId && x.ClinicId == clinicId);
+
+        if (consentId.HasValue)
+            query = query.Where(x => x.ConsentRecordId == consentId.Value);
+
+        return await query
+            .OrderByDescending(x => x.Timestamp)
+            .Select(x => new ConsentAuditEventDto(
+                x.Id,
+                x.ConsentRecordId,
+                x.PatientId,
+                x.EventType,
+                x.ConsentType,
+                x.PerformedByUserId,
+                x.IpAddress,
+                x.Reason,
+                x.Details,
+                x.Timestamp))
+            .ToListAsync(ct);
     }
 
     private static ConsentDto Map(ConsentRecord x) =>
@@ -140,6 +216,10 @@ public sealed class ConsentService : IConsentService
             x.GrantedAt,
             x.ExpiresAt,
             x.WitnessUserId,
+            x.GrantedByUserId,
+            x.RevokedByUserId,
+            x.RevokedAt,
+            x.RevocationReason,
             x.Notes,
-            x.IsGranted && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow));
+            x.IsGranted && x.RevokedAt == null && (x.ExpiresAt == null || x.ExpiresAt > DateTime.UtcNow));
 }

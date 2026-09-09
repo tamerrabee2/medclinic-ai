@@ -13,6 +13,9 @@ public class ConsentRecordConfiguration : IEntityTypeConfiguration<ConsentRecord
         builder.Property(c => c.Notes)
             .HasMaxLength(1000);
 
+        builder.Property(c => c.RevocationReason)
+            .HasMaxLength(500);
+
         builder.Property(c => c.IpAddress)
             .HasMaxLength(64);
 
@@ -27,5 +30,20 @@ public class ConsentRecordConfiguration : IEntityTypeConfiguration<ConsentRecord
             .WithMany()
             .HasForeignKey(c => c.WitnessUserId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(c => c.GrantedByUser)
+            .WithMany()
+            .HasForeignKey(c => c.GrantedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(c => c.RevokedByUser)
+            .WithMany()
+            .HasForeignKey(c => c.RevokedByUserId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasMany(c => c.AuditEvents)
+            .WithOne(a => a.ConsentRecord)
+            .HasForeignKey(a => a.ConsentRecordId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

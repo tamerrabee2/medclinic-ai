@@ -62,7 +62,9 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.UsersRead, Permissions.UsersManage,
             Permissions.ClinicsRead, Permissions.ClinicsManage,
             Permissions.AIAssist, Permissions.AIAdmin,
-            Permissions.ReportsRead, Permissions.ReportsExport
+            Permissions.ReportsRead, Permissions.ReportsExport,
+            Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
+            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
         ],
 
         [Roles.ClinicAdmin] =
@@ -83,7 +85,9 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.UsersRead, Permissions.UsersManage,
             Permissions.ClinicsRead, Permissions.ClinicsManage,
             Permissions.AIAssist,
-            Permissions.ReportsRead, Permissions.ReportsExport
+            Permissions.ReportsRead, Permissions.ReportsExport,
+            Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
+            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
         ],
 
         [Roles.Doctor] =
@@ -96,7 +100,9 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.RadiologyRead, Permissions.RadiologyCreate, Permissions.RadiologyUpdate,
             Permissions.BillingRead,
             Permissions.AIAssist,
-            Permissions.ReportsRead
+            Permissions.ReportsRead,
+            Permissions.PatientConsentsView, Permissions.PatientConsentsManage,
+            Permissions.PatientConsentsRevoke, Permissions.PatientConsentsAudit
         ],
 
         [Roles.Nurse] =
@@ -106,7 +112,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.MedicalRecordsRead, Permissions.MedicalRecordsCreate, Permissions.MedicalRecordsUpdate,
             Permissions.LabRead, Permissions.LabCreate,
             Permissions.RadiologyRead,
-            Permissions.BillingRead
+            Permissions.BillingRead,
+            Permissions.PatientConsentsView, Permissions.PatientConsentsManage
         ],
 
         [Roles.Receptionist] =
@@ -114,7 +121,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.PatientsRead, Permissions.PatientsCreate,
             Permissions.AppointmentsRead, Permissions.AppointmentsCreate,
             Permissions.AppointmentsUpdate, Permissions.AppointmentsCancel,
-            Permissions.BillingRead, Permissions.BillingCreate
+            Permissions.BillingRead, Permissions.BillingCreate,
+            Permissions.PatientConsentsView
         ],
 
         [Roles.LabTechnician] =

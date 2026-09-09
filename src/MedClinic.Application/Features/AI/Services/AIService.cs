@@ -1,3 +1,4 @@
+using IAiConsentGuard = MedClinic.Application.Common.Interfaces.IAiConsentGuard;
 using MedClinic.Application.Features.AI.DTOs;
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
@@ -13,19 +14,22 @@ public class AIService
     private readonly IAIProvider          _ai;
     private readonly ILogger<AIService>   _logger;
     private readonly IAiDecisionAuditService? _auditService;
+    private readonly IAiConsentGuard?     _consentGuard;
 
     public AIService(
         IApplicationDbContext db,
         ITenantContext tenant,
         IAIProvider ai,
         ILogger<AIService> logger,
-        IAiDecisionAuditService? auditService = null)
+        IAiDecisionAuditService? auditService = null,
+        IAiConsentGuard? consentGuard = null)
     {
         _db           = db;
         _tenant       = tenant;
         _ai           = ai;
         _logger       = logger;
         _auditService = auditService;
+        _consentGuard = consentGuard;
     }
 
     // ── Conversations ────────────────────────────────────────────────────────
@@ -74,6 +78,11 @@ public class AIService
     public async Task<ConversationDto> SendMessageAsync(
         Guid userId, SendMessageRequest req, CancellationToken ct = default)
     {
+        if (req.PatientContextId.HasValue && _consentGuard != null)
+        {
+            await _consentGuard.EnsureAiConsentAsync(req.PatientContextId.Value, ct);
+        }
+
         // 1. Resolve or create conversation
         AIConversation conversation;
         if (req.ConversationId.HasValue)
@@ -217,6 +226,11 @@ public class AIService
                 r.LabOrder.ClinicId == _tenant.ClinicId, ct)
             ?? throw new KeyNotFoundException("Lab result not found.");
 
+        if (_consentGuard != null)
+        {
+            await _consentGuard.EnsureAiConsentAsync(labResult.LabOrder.PatientId, ct);
+        }
+
         // Build previous results for comparison
         List<LabResult>? previousResults = null;
         if (req.CompareWithPrevious)
@@ -279,6 +293,11 @@ public class AIService
                 p.ClinicId == _tenant.ClinicId, ct)
             ?? throw new KeyNotFoundException("Patient not found.");
 
+        if (_consentGuard != null)
+        {
+            await _consentGuard.EnsureAiConsentAsync(patient.Id, ct);
+        }
+
         var recentVisits = await _db.Visits
             .Where(v => v.PatientId == req.PatientId)
             .OrderByDescending(v => v.VisitDate)
@@ -335,6 +354,11 @@ public class AIService
                 i.Id == req.RadiologyImageId &&
                 i.RadiologyStudy.ClinicId == _tenant.ClinicId, ct)
             ?? throw new KeyNotFoundException("Medical image not found.");
+
+        if (_consentGuard != null)
+        {
+            await _consentGuard.EnsureAiConsentAsync(image.RadiologyStudy.PatientId, ct);
+        }
 
         var input = new MedicalImageInput(
             ImageId: image.Id,

@@ -32,6 +32,7 @@ public interface IApplicationDbContext
     DbSet<Notification> Notifications { get; }
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<ConsentRecord> ConsentRecords { get; }
+    DbSet<ConsentAuditEvent> ConsentAuditEvents { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

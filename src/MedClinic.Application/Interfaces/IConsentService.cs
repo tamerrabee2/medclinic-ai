@@ -11,6 +11,7 @@ public interface IConsentService
         DateTime? expiresAt,
         string? notes,
         Guid? witnessUserId,
+        Guid? grantedByUserId,
         string? ipAddress,
         CancellationToken ct = default);
 
@@ -18,6 +19,8 @@ public interface IConsentService
         Guid patientId,
         Guid consentId,
         string reason,
+        Guid? revokedByUserId,
+        string? ipAddress = null,
         CancellationToken ct = default);
 
     Task<IReadOnlyList<ConsentDto>> GetHistoryAsync(
@@ -27,6 +30,11 @@ public interface IConsentService
     Task<bool> HasActiveConsentAsync(
         Guid patientId,
         ConsentType type,
+        CancellationToken ct = default);
+
+    Task<IReadOnlyList<ConsentAuditEventDto>> GetAuditTrailAsync(
+        Guid patientId,
+        Guid? consentId = null,
         CancellationToken ct = default);
 }
 
@@ -38,5 +46,21 @@ public record ConsentDto(
     DateTime GrantedAt,
     DateTime? ExpiresAt,
     Guid? WitnessUserId,
+    Guid? GrantedByUserId,
+    Guid? RevokedByUserId,
+    DateTime? RevokedAt,
+    string? RevocationReason,
     string? Notes,
     bool IsActive);
+
+public record ConsentAuditEventDto(
+    Guid Id,
+    Guid ConsentRecordId,
+    Guid PatientId,
+    ConsentAuditEventType EventType,
+    ConsentType ConsentType,
+    Guid? PerformedByUserId,
+    string? IpAddress,
+    string? Reason,
+    string? Details,
+    DateTime Timestamp);

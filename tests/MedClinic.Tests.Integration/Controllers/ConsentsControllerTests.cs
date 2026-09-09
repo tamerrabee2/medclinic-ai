@@ -27,7 +27,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
         _client = factory.CreateClient();
     }
 
-    private async Task<(Guid clinicAId, Guid clinicBId, Guid patientAId, Guid patientBId, string tokenUserA)> SeedConsentDataAsync()
+    private async Task<(Guid clinicAId, Guid clinicBId, Guid patientAId, Guid patientBId, string tokenDoctorA, string tokenNurseA, string tokenReceptionistA)> SeedConsentDataAsync()
     {
         using var scope = _factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -53,6 +53,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
 
         db.Clinics.AddRange(clinicA, clinicB);
 
+        // Doctor A
         var doctorA = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -63,8 +64,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
             IsActive = true
         };
         db.Users.Add(doctorA);
-
-        var memberA = new ClinicMember
+        db.ClinicMembers.Add(new ClinicMember
         {
             Id = Guid.NewGuid(),
             ClinicId = clinicA.Id,
@@ -72,8 +72,49 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
             Role = Roles.Doctor,
             IsActive = true,
             JoinedAt = DateTime.UtcNow
+        });
+
+        // Nurse A
+        var nurseA = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"nurse_{Guid.NewGuid():N}@clinica.com",
+            UserName = $"nurse_{Guid.NewGuid():N}",
+            FirstName = "Nurse",
+            LastName = "Beta",
+            IsActive = true
         };
-        db.ClinicMembers.Add(memberA);
+        db.Users.Add(nurseA);
+        db.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicA.Id,
+            UserId = nurseA.Id,
+            Role = Roles.Nurse,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
+
+        // Receptionist A
+        var receptionistA = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"receptionist_{Guid.NewGuid():N}@clinica.com",
+            UserName = $"receptionist_{Guid.NewGuid():N}",
+            FirstName = "Receptionist",
+            LastName = "Gamma",
+            IsActive = true
+        };
+        db.Users.Add(receptionistA);
+        db.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicA.Id,
+            UserId = receptionistA.Id,
+            Role = Roles.Receptionist,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
 
         var patientA = new Patient
         {
@@ -100,9 +141,11 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
         db.Patients.AddRange(patientA, patientB);
         await db.SaveChangesAsync();
 
-        var tokenA = jwtService.GenerateAccessTokenWithClinic(doctorA, [Roles.Doctor], clinicA.Id);
+        var tokenDoctorA = jwtService.GenerateAccessTokenWithClinic(doctorA, [Roles.Doctor], clinicA.Id);
+        var tokenNurseA = jwtService.GenerateAccessTokenWithClinic(nurseA, [Roles.Nurse], clinicA.Id);
+        var tokenReceptionistA = jwtService.GenerateAccessTokenWithClinic(receptionistA, [Roles.Receptionist], clinicA.Id);
 
-        return (clinicA.Id, clinicB.Id, patientA.Id, patientB.Id, tokenA);
+        return (clinicA.Id, clinicB.Id, patientA.Id, patientB.Id, tokenDoctorA, tokenNurseA, tokenReceptionistA);
     }
 
     [Fact]
@@ -125,7 +168,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
     [Fact]
     public async Task RecordConsent_ForAiAssistedCare_Succeeds_And_SetsActive()
     {
-        var (clinicAId, _, patientAId, _, tokenA) = await SeedConsentDataAsync();
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
 
         using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
@@ -152,7 +195,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
     [Fact]
     public async Task HasActiveConsent_ReturnsTrue_WhenConsentIsGrantedAndNotExpired()
     {
-        var (clinicAId, _, patientAId, _, tokenA) = await SeedConsentDataAsync();
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
 
         // 1. Record AI consent
         using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents"))
@@ -184,7 +227,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
     [Fact]
     public async Task RevokeConsent_WithReason_Succeeds_And_SetsIsGrantedFalse()
     {
-        var (clinicAId, _, patientAId, _, tokenA) = await SeedConsentDataAsync();
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
 
         // 1. Record consent
         Guid consentId;
@@ -232,9 +275,213 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
     }
 
     [Fact]
+    public async Task RevokeConsent_CannotBeReRevoked_Returns400BadRequest()
+    {
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
+
+        // 1. Record consent
+        Guid consentId;
+        using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents"))
+        {
+            postReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            postReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            postReq.Content = JsonContent.Create(new
+            {
+                consentType = (int)ConsentType.AiAssistedCare,
+                isGranted = true
+            });
+            var postRes = await _client.SendAsync(postReq);
+            var created = await postRes.Content.ReadFromJsonAsync<ConsentDto>(JsonOptions);
+            consentId = created!.Id;
+        }
+
+        // 2. Revoke first time
+        using (var revokeReq1 = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents/{consentId}/revoke"))
+        {
+            revokeReq1.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            revokeReq1.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            revokeReq1.Content = JsonContent.Create(new { reason = "Initial revocation" });
+            var res1 = await _client.SendAsync(revokeReq1);
+            res1.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        // 3. Attempt to revoke second time -> Must be rejected by immutable safeguard
+        using var revokeReq2 = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents/{consentId}/revoke");
+        revokeReq2.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        revokeReq2.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        revokeReq2.Content = JsonContent.Create(new { reason = "Second revocation attempt" });
+
+        var res2 = await _client.SendAsync(revokeReq2);
+        res2.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task AuditTrail_CapturesImmutableGrantedAndRevokedEvents()
+    {
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
+
+        // 1. Record consent
+        Guid consentId;
+        using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents"))
+        {
+            postReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            postReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            postReq.Content = JsonContent.Create(new
+            {
+                consentType = (int)ConsentType.DataSharing,
+                isGranted = true,
+                notes = "Consent for external specialist sharing"
+            });
+            var postRes = await _client.SendAsync(postReq);
+            var created = await postRes.Content.ReadFromJsonAsync<ConsentDto>(JsonOptions);
+            consentId = created!.Id;
+        }
+
+        // 2. Revoke consent
+        using (var revokeReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents/{consentId}/revoke"))
+        {
+            revokeReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            revokeReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            revokeReq.Content = JsonContent.Create(new { reason = "Patient requested revocation" });
+            var revokeRes = await _client.SendAsync(revokeReq);
+            revokeRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        // 3. Query audit trail
+        using var auditReq = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/patients/{patientAId}/consents/audit?consentId={consentId}");
+        auditReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+        auditReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var auditRes = await _client.SendAsync(auditReq);
+        auditRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var events = await auditRes.Content.ReadFromJsonAsync<List<ConsentAuditEventDto>>(JsonOptions);
+        events.Should().NotBeNull();
+        events!.Count.Should().Be(2);
+
+        events.Should().Contain(e => e.EventType == ConsentAuditEventType.Revoked && e.Reason == "Patient requested revocation");
+        events.Should().Contain(e => e.EventType == ConsentAuditEventType.Granted);
+    }
+
+    [Fact]
+    public async Task RBAC_Receptionist_CannotRecordOrRevokeConsent_Returns403()
+    {
+        var (clinicAId, _, patientAId, _, _, _, tokenReceptionist) = await SeedConsentDataAsync();
+
+        // 1. Receptionist tries to Record consent (Requires PatientConsents.Manage)
+        using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents"))
+        {
+            postReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenReceptionist);
+            postReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            postReq.Content = JsonContent.Create(new
+            {
+                consentType = (int)ConsentType.GeneralCare,
+                isGranted = true
+            });
+
+            var postRes = await _client.SendAsync(postReq);
+            postRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        }
+
+        // 2. Receptionist CAN read consent history (Has PatientConsents.View)
+        using (var getReq = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/patients/{patientAId}/consents"))
+        {
+            getReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenReceptionist);
+            getReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+            var getRes = await _client.SendAsync(getReq);
+            getRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+    }
+
+    [Fact]
+    public async Task RBAC_Nurse_CanRecord_ButCannotRevokeConsent_Returns403()
+    {
+        var (clinicAId, _, patientAId, _, tokenDoctor, tokenNurse, _) = await SeedConsentDataAsync();
+
+        // 1. Doctor records consent
+        Guid consentId;
+        using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents"))
+        {
+            postReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctor);
+            postReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            postReq.Content = JsonContent.Create(new
+            {
+                consentType = (int)ConsentType.GeneralCare,
+                isGranted = true
+            });
+
+            var postRes = await _client.SendAsync(postReq);
+            var created = await postRes.Content.ReadFromJsonAsync<ConsentDto>(JsonOptions);
+            consentId = created!.Id;
+        }
+
+        // 2. Nurse tries to Revoke consent (Requires PatientConsents.Revoke)
+        using var revokeReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents/{consentId}/revoke");
+        revokeReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenNurse);
+        revokeReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+        revokeReq.Content = JsonContent.Create(new { reason = "Nurse trying to revoke" });
+
+        var revokeRes = await _client.SendAsync(revokeReq);
+        revokeRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task AiConsentGuard_BlocksClinicalAI_WhenConsentNotGranted()
+    {
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
+
+        // 1. Try to invoke Clinical AI without active consent -> Should fail with 400
+        using (var aiReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/clinical-ai/risk-score"))
+        {
+            aiReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            aiReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            aiReq.Content = JsonContent.Create(new
+            {
+                age = 45,
+                vitals = new Dictionary<string, string> { ["BP"] = "120/80" },
+                factors = new Dictionary<string, string> { ["Smoker"] = "No" }
+            });
+
+            var aiRes = await _client.SendAsync(aiReq);
+            aiRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        }
+
+        // 2. Grant AI consent
+        using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents"))
+        {
+            postReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            postReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            postReq.Content = JsonContent.Create(new
+            {
+                consentType = (int)ConsentType.AiAssistedCare,
+                isGranted = true
+            });
+            var postRes = await _client.SendAsync(postReq);
+            postRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        }
+
+        // 3. Invoke Clinical AI again -> Should succeed (200 OK)
+        using (var aiReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/clinical-ai/risk-score"))
+        {
+            aiReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+            aiReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+            aiReq.Content = JsonContent.Create(new
+            {
+                age = 45,
+                vitals = new Dictionary<string, string> { ["BP"] = "120/80" },
+                factors = new Dictionary<string, string> { ["Smoker"] = "No" }
+            });
+
+            var aiRes = await _client.SendAsync(aiReq);
+            aiRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+    }
+
+    [Fact]
     public async Task RevokeConsent_WithoutReason_Returns400BadRequest()
     {
-        var (clinicAId, _, patientAId, _, tokenA) = await SeedConsentDataAsync();
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
 
         using var revokeReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents/{Guid.NewGuid()}/revoke");
         revokeReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
@@ -251,7 +498,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
     [Fact]
     public async Task RecordConsent_WithPastExpiry_Returns400BadRequest()
     {
-        var (clinicAId, _, patientAId, _, tokenA) = await SeedConsentDataAsync();
+        var (clinicAId, _, patientAId, _, tokenA, _, _) = await SeedConsentDataAsync();
 
         using var req = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientAId}/consents");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
@@ -270,7 +517,7 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
     [Fact]
     public async Task ClinicA_CannotManage_ConsentOfPatientInClinicB_Returns404()
     {
-        var (clinicAId, _, _, patientBId, tokenA) = await SeedConsentDataAsync();
+        var (clinicAId, _, _, patientBId, tokenA, _, _) = await SeedConsentDataAsync();
 
         // 1. Try to record consent for Patient in Clinic B
         using (var postReq = new HttpRequestMessage(HttpMethod.Post, $"/api/v1/patients/{patientBId}/consents"))

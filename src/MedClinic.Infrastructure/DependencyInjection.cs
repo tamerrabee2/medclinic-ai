@@ -81,6 +81,7 @@ public static partial class DependencyInjection
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAiDecisionAuditService, AiDecisionAuditService>();
         services.AddScoped<IConsentService, ConsentService>();
+        services.AddScoped<MedClinic.Application.Common.Interfaces.IAiConsentGuard, AiConsentGuard>();
         services.AddScoped<MedClinic.Application.Common.Interfaces.IEmailService, EmailService>();
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
@@ -107,6 +108,9 @@ public static partial class DependencyInjection
             services.AddScoped<IAIProvider, LocalAIProvider>();
         else
             services.AddScoped<IAIProvider, MockAIProvider>();
+
+        // Phase 8 Advanced Clinical AI
+        services.AddPhase8AdvancedClinicalAIServices();
 
         // Caching
         services.AddDistributedMemoryCache();
