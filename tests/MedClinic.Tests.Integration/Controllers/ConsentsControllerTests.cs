@@ -1131,5 +1131,198 @@ public class ConsentsControllerTests : IClassFixture<WebAppFactory>
         var body = await chatRes.Content.ReadAsStringAsync();
         body.Should().Contain("consent_required");
     }
+
+    [Fact]
+    public async Task AuditExplorer_ExportCsv_SanitizesFormulaInjection()
+    {
+        var (clinicAId, _, patientAId, _, _, _, _) = await SeedConsentDataAsync();
+
+        // 1. Seed a consent audit event with Excel formula triggers
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var consent = new ConsentRecord
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                ConsentType = ConsentType.GeneralCare,
+                IsGranted = true,
+                GrantedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.ConsentRecords.Add(consent);
+            db.ConsentAuditEvents.Add(new ConsentAuditEvent
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                ConsentRecordId = consent.Id,
+                PatientId = patientAId,
+                EventType = ConsentAuditEventType.Granted,
+                ConsentType = ConsentType.GeneralCare,
+                Reason = "=cmd|' /C calc'!A0",
+                Timestamp = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Admin exports unmasked CSV
+        using var adminScope = _factory.Services.CreateScope();
+        var jwt = adminScope.ServiceProvider.GetRequiredService<IJwtService>();
+        var dbCtx = adminScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adminUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"secadmin_{Guid.NewGuid():N}@clinic.com",
+            UserName = $"secadmin_{Guid.NewGuid():N}",
+            FirstName = "Security",
+            LastName = "Auditor",
+            IsActive = true
+        };
+        dbCtx.Users.Add(adminUser);
+        dbCtx.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicAId,
+            UserId = adminUser.Id,
+            Role = Roles.ClinicAdmin,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
+        await dbCtx.SaveChangesAsync();
+        var adminToken = jwt.GenerateAccessTokenWithClinic(adminUser, [Roles.ClinicAdmin], clinicAId);
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/consents/export?maskPii=false");
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        req.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var res = await _client.SendAsync(req);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var csv = await res.Content.ReadAsStringAsync();
+        // The formula '=' must be neutralized with a leading single quote '\''
+        csv.Should().Contain("\"'=cmd");
+    }
+
+    [Fact]
+    public async Task AuditExplorer_AiDecisions_EnforcesPermissionAndPiiMinimization()
+    {
+        var (clinicAId, _, patientAId, _, tokenDoctorA, _, tokenReceptionistA) = await SeedConsentDataAsync();
+
+        // 1. Seed an AI Decision Audit
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var audit = new AiDecisionAudit
+            {
+                Id = Guid.NewGuid(),
+                ClinicId = clinicAId,
+                PatientId = patientAId,
+                Capability = "PharmacologicalInteractions",
+                ProviderName = "GoogleGemini",
+                ModelVersion = "gemini-1.5-pro",
+                ConfidenceScore = 0.94,
+                ReviewStatus = AiReviewStatus.Modified,
+                OverrideReason = "Adjusted dosage for renal clearance",
+                CorrelationId = Guid.NewGuid().ToString(),
+                CreatedAt = DateTime.UtcNow
+            };
+            db.AiDecisionAudits.Add(audit);
+            await db.SaveChangesAsync();
+        }
+
+        // 2. Receptionist lacking AIDecisions.View -> 403 Forbidden
+        using var unauthReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/ai-decisions");
+        unauthReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenReceptionistA);
+        unauthReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var unauthRes = await _client.SendAsync(unauthReq);
+        unauthRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // 3. Doctor querying with default maskPii = true -> 200 OK, with masked PatientName and redacted OverrideReason
+        using var docReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/ai-decisions?maskPii=true");
+        docReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        docReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var docRes = await _client.SendAsync(docReq);
+        docRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var docJson = await docRes.Content.ReadAsStringAsync();
+        docJson.Should().Contain("P*** C***"); // Masked "PatientA Consent"
+        docJson.Should().Contain("[REDACTED — requires privileged view permission]");
+
+        // 4. Admin querying with maskPii = false -> 200 OK, with unmasked PatientName and original OverrideReason
+        using var adminScope = _factory.Services.CreateScope();
+        var jwt = adminScope.ServiceProvider.GetRequiredService<IJwtService>();
+        var dbCtx = adminScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adminUser = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = $"chief_{Guid.NewGuid():N}@clinic.com",
+            UserName = $"chief_{Guid.NewGuid():N}",
+            FirstName = "Chief",
+            LastName = "Medical",
+            IsActive = true
+        };
+        dbCtx.Users.Add(adminUser);
+        dbCtx.ClinicMembers.Add(new ClinicMember
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicAId,
+            UserId = adminUser.Id,
+            Role = Roles.ClinicAdmin,
+            IsActive = true,
+            JoinedAt = DateTime.UtcNow
+        });
+        await dbCtx.SaveChangesAsync();
+        var adminToken = jwt.GenerateAccessTokenWithClinic(adminUser, [Roles.ClinicAdmin], clinicAId);
+
+        using var adminReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/ai-decisions?maskPii=false");
+        adminReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        adminReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var adminRes = await _client.SendAsync(adminReq);
+        adminRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var adminJson = await adminRes.Content.ReadAsStringAsync();
+        adminJson.Should().Contain("PatientA Consent");
+        adminJson.Should().Contain("Adjusted dosage for renal clearance");
+    }
+
+    [Fact]
+    public async Task AuditExplorer_AiDecisions_ExportCsv_ProducesSha256AndAuditLog()
+    {
+        var (clinicAId, _, patientAId, _, tokenDoctorA, _, tokenReceptionistA) = await SeedConsentDataAsync();
+
+        // 1. Receptionist lacking AIDecisions.Export -> 403 Forbidden
+        using var unauthReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/ai-decisions/export");
+        unauthReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenReceptionistA);
+        unauthReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var unauthRes = await _client.SendAsync(unauthReq);
+        unauthRes.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // 2. Doctor exports CSV -> 200 OK with SHA-256 header
+        using var docReq = new HttpRequestMessage(HttpMethod.Get, "/api/v1/audit/explorer/ai-decisions/export?maskPii=true");
+        docReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", tokenDoctorA);
+        docReq.Headers.Add("X-Clinic-Id", clinicAId.ToString());
+
+        var docRes = await _client.SendAsync(docReq);
+        docRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        docRes.Headers.Contains("X-Export-SHA256").Should().BeTrue();
+
+        var sha = docRes.Headers.GetValues("X-Export-SHA256").First();
+        sha.Should().NotBeNullOrWhiteSpace();
+
+        // 3. Verify an AuditLog entry was written
+        using var verifyScope = _factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var log = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            verifyDb.AuditLogs.IgnoreQueryFilters(),
+            l => l.ClinicId == clinicAId && l.Action == "ExportCsv" && l.EntityName == "AiDecisionAuditExport");
+
+        log.Should().NotBeNull();
+        log!.Description.Should().Contain(sha);
+    }
 }
 

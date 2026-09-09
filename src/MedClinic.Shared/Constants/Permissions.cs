@@ -54,6 +54,9 @@ public static class Permissions
     public const string AIAssist   = "AI.Assist";
     public const string AIAdmin    = "AI.Admin";
     public const string AIAnalysis = "AI.Analysis";
+    public const string AIDecisionsView   = "AIDecisions.View";
+    public const string AIDecisionsExport = "AIDecisions.Export";
+    public const string AIDecisionsReview = "AIDecisions.Review";
 
     // ── Reports ───────────────────────────────────────────────────────────
     public const string ReportsRead   = "Reports.Read";
