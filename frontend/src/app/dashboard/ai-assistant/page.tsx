@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, useTransition } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ApiClient } from '@/lib/api';
 import {
   Sparkles,
@@ -14,9 +14,9 @@ import {
   Search,
   CheckCircle2,
   X,
-  Server,
   Lock,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { AiConsentBlockingModal } from '@/components/ai/AiConsentBlockingModal';
 
@@ -57,8 +57,16 @@ export default function AIAssistantPage() {
   const [loadingPatients, setLoadingPatients] = useState(false);
   const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
 
+  // Strict Medical AI Safety Error State
+  const [aiError, setAiError] = useState<{
+    message: string;
+    detail?: string;
+    failedPrompt?: string;
+  } | null>(null);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const patientDropdownRef = useRef<HTMLDivElement>(null);
+  const searchRequestIdRef = useRef<number>(0);
 
   // Clear any legacy client-side AI keys to guarantee client privacy and security
   useEffect(() => {
@@ -69,11 +77,14 @@ export default function AIAssistantPage() {
     }
   }, []);
 
-  // Fetch real patient list from API
-  const fetchPatients = async (searchTerm = '') => {
+  // Fetch real patient list from API with stale-response protection
+  const fetchPatients = async (searchTerm = '', requestId?: number) => {
     setLoadingPatients(true);
     try {
       const res: any = await ApiClient.getPatients(searchTerm, 1, 20);
+      if (requestId !== undefined && requestId !== searchRequestIdRef.current) {
+        return; // Discard stale response
+      }
       const list = res?.data?.items || res?.items || [];
       const mapped = list.map((p: any) => ({
         id: p.id,
@@ -82,16 +93,32 @@ export default function AIAssistantPage() {
       }));
       setPatients(mapped);
     } catch {
-      // Fallback empty list
       setPatients([]);
     } finally {
       setLoadingPatients(false);
     }
   };
 
+  // Initial fetch on mount
   useEffect(() => {
     fetchPatients();
   }, []);
+
+  // Debounced patient search (300ms) with minimum 2 characters requirement
+  useEffect(() => {
+    const currentId = ++searchRequestIdRef.current;
+    const trimmed = patientSearchQuery.trim();
+
+    if (trimmed.length === 1) {
+      return; // Do not query on single character
+    }
+
+    const timer = setTimeout(() => {
+      fetchPatients(trimmed, currentId);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [patientSearchQuery]);
 
   // Close patient dropdown on outside click
   useEffect(() => {
@@ -128,6 +155,8 @@ export default function AIAssistantPage() {
   const handleSend = async (textToSend?: string) => {
     const text = textToSend || input;
     if (!text.trim() || loading) return;
+
+    setAiError(null);
 
     const userMsg: Message = {
       id: Math.random().toString(),
@@ -174,7 +203,7 @@ export default function AIAssistantPage() {
           },
         ]);
       } else {
-        throw new Error('Backend fallback');
+        throw new Error('No response returned from AI Gateway');
       }
     } catch (err: any) {
       if (err.message?.includes('consent_required') || err.message?.includes('403')) {
@@ -183,24 +212,12 @@ export default function AIAssistantPage() {
         return;
       }
 
-      // Diagnostic Clinical fallback from secure backend server
-      setTimeout(() => {
-        const responseContent =
-          `### Clinical Copilot Response (Secure Server Gateway)\n\n` +
-          `1. **Clinical Impression**: Evaluation of input "${text}".\n` +
-          `2. **Protocol Check**: Ensure full patient vital history is correlated with current clinical presentation.\n` +
-          `3. **Recommendation**: Review lab panels and drug interactions prior to finalizing prescription.`;
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Math.random().toString(),
-            role: 'assistant',
-            content: responseContent,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      }, 500);
+      // STRICT SAFETY COMPLIANCE: Never fake or simulate clinical recommendations when AI is unavailable
+      setAiError({
+        message: 'Clinical AI service is temporarily unavailable. No clinical AI assessment was generated.',
+        detail: 'Please retry or proceed using standard independent clinical workflow.',
+        failedPrompt: text,
+      });
     } finally {
       setLoading(false);
     }
@@ -262,15 +279,18 @@ export default function AIAssistantPage() {
                   <input
                     type="text"
                     value={patientSearchQuery}
-                    onChange={(e) => {
-                      setPatientSearchQuery(e.target.value);
-                      fetchPatients(e.target.value);
-                    }}
-                    placeholder="Search patient by name or MRN..."
+                    onChange={(e) => setPatientSearchQuery(e.target.value)}
+                    placeholder="Search patient by name or MRN (min 2 chars)..."
                     className="w-full pl-8 pr-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500"
                     autoFocus
                   />
                 </div>
+
+                {patientSearchQuery.trim().length === 1 && (
+                  <div className="px-3 py-1.5 text-[11px] text-amber-400/80 bg-amber-500/10 rounded-lg">
+                    Type at least 2 characters to search...
+                  </div>
+                )}
 
                 <div className="max-h-56 overflow-y-auto space-y-1">
                   <button
@@ -287,7 +307,7 @@ export default function AIAssistantPage() {
                   {loadingPatients ? (
                     <div className="p-4 text-center text-xs text-slate-500 flex items-center justify-center gap-2">
                       <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-400" />
-                      <span>Loading patients...</span>
+                      <span>Searching patients...</span>
                     </div>
                   ) : patients.length === 0 ? (
                     <div className="p-4 text-center text-xs text-slate-500">
@@ -327,7 +347,8 @@ export default function AIAssistantPage() {
 
           {/* Reset Session */}
           <button
-            onClick={() =>
+            onClick={() => {
+              setAiError(null);
               setMessages([
                 {
                   id: 'welcome',
@@ -336,8 +357,8 @@ export default function AIAssistantPage() {
                     "Chat history reset. How can I assist you in your clinical evaluation today?",
                   createdAt: new Date().toISOString(),
                 },
-              ])
-            }
+              ]);
+            }}
             className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition"
             title="Reset Session"
           >
@@ -412,6 +433,43 @@ export default function AIAssistantPage() {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Safe AI Outage / Failure Banner */}
+      {aiError && (
+        <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shrink-0 shadow-lg">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <div>
+              <div className="font-bold text-amber-300">{aiError.message}</div>
+              <div className="text-[11px] text-amber-400/80">{aiError.detail}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            {aiError.failedPrompt && (
+              <button
+                type="button"
+                onClick={() => {
+                  const p = aiError.failedPrompt;
+                  setAiError(null);
+                  if (p) handleSend(p);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-semibold text-xs transition flex items-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Retry Request</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setAiError(null)}
+              className="p-1.5 rounded-lg text-amber-400 hover:text-white hover:bg-amber-500/20 transition"
+              title="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Suggested Fast Prompts */}
       <div className="flex items-center gap-2 overflow-x-auto py-1 shrink-0">

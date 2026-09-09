@@ -182,9 +182,7 @@ public class AuditExplorerController : BaseController
             var rawPatientName = r.Patient != null ? $"{r.Patient.FirstName} {r.Patient.LastName}" : "Unknown";
             var patientIdent = maskPii ? MaskName(rawPatientName) : rawPatientName;
             var performedBy = r.PerformedByUser?.FullName ?? "System";
-            var reason = maskPii
-                ? "[REDACTED — requires privileged export permission]"
-                : (r.Reason ?? string.Empty);
+            var reason = SensitiveNarrativeRedactor.Redact(r.Reason, maskPii);
             var ip = maskPii ? MaskIp(r.IpAddress) : (r.IpAddress ?? "N/A");
 
             sb.AppendLine($"{CsvSafe(r.Id.ToString())},{CsvSafe(r.Timestamp.ToString("u"))},{CsvSafe(patientIdent)},{CsvSafe(r.EventType.ToString())},{CsvSafe(r.ConsentType.ToString())},{CsvSafe(performedBy)},{CsvSafe(reason)},{CsvSafe(ip)}");
@@ -310,9 +308,10 @@ public class AuditExplorerController : BaseController
             a.DoctorName,
             a.ReviewStatus,
             a.ConfidenceScore,
-            OverrideReason = maskPii && !string.IsNullOrEmpty(a.OverrideReason)
-                ? "[REDACTED — requires privileged view permission]"
-                : a.OverrideReason,
+            OverrideReason = SensitiveNarrativeRedactor.Redact(
+                a.OverrideReason,
+                maskPii,
+                SensitiveNarrativeRedactor.DefaultViewRedactedPlaceholder),
             a.CorrelationId,
             a.CreatedAt,
             a.ReviewedAt
@@ -391,9 +390,7 @@ public class AuditExplorerController : BaseController
             var patientIdent = maskPii ? MaskName(rawPatientName) : rawPatientName;
             var fileNumber = maskPii ? MaskFileNumber(rawFileNumber) : rawFileNumber;
             var doctorName = r.Doctor?.FullName ?? "System";
-            var overrideReason = maskPii
-                ? "[REDACTED — requires privileged export permission]"
-                : (r.OverrideReason ?? string.Empty);
+            var overrideReason = SensitiveNarrativeRedactor.Redact(r.OverrideReason, maskPii);
 
             sb.AppendLine($"{CsvSafe(r.Id.ToString())},{CsvSafe(r.CreatedAt.ToString("u"))},{CsvSafe(patientIdent)},{CsvSafe(fileNumber)},{CsvSafe(r.Capability)},{CsvSafe(r.ProviderName)},{CsvSafe(r.ModelVersion)},{CsvSafe(r.ConfidenceScore?.ToString("P1") ?? "N/A")},{CsvSafe(r.ReviewStatus.ToString())},{CsvSafe(doctorName)},{CsvSafe(overrideReason)}");
         }

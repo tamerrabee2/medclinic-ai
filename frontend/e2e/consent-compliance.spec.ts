@@ -63,4 +63,29 @@ test.describe('Phase 12: Consent Management, AI Guard & Audit Explorer Complianc
     // 4. Verify Search and Event Filter inputs
     await expect(page.getByPlaceholder(/Search MRN|بحث في السجل/i)).toBeVisible();
   });
+
+  test('AI Assistant displays safe error alert and zero fake messages when server fails', async ({ page }) => {
+    // Intercept AI endpoint to simulate backend failure (503 Service Unavailable)
+    await page.route('**/api/v1/ai/**', route => route.abort('failed'));
+
+    await page.goto('/dashboard/ai-assistant');
+
+    // Select patient if available or enter query
+    const input = page.getByPlaceholder(/Ask clinical question|اسأل المساعد/i);
+    await input.fill('What is the recommended antibiotic dosage?');
+
+    // Click Send
+    const sendBtn = page.getByRole('button', { name: /Send|إرسال/i });
+    if (await sendBtn.isVisible()) {
+      await sendBtn.click();
+
+      // Verify Safety Alert is displayed
+      await expect(page.getByText(/AI Service Unavailable|خدمة الذكاء الاصطناعي غير متاحة/i)).toBeVisible();
+      await expect(page.getByRole('button', { name: /Retry Request|إعادة المحاولة/i })).toBeVisible();
+
+      // CRITICAL: Ensure NO simulated clinical text is injected into chat
+      await expect(page.getByText(/Clinical Copilot Response/i)).toHaveCount(0);
+      await expect(page.getByText(/Clinical Impression/i)).toHaveCount(0);
+    }
+  });
 });
