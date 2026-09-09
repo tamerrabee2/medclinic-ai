@@ -18,9 +18,9 @@ test.describe('Public SaaS & Authentication Flows', () => {
   test('Pricing page renders subscription tiers and annual toggle', async ({ page }) => {
     await page.goto('/pricing');
     await expect(page.locator('h1')).toContainText('Invest in Clinical Precision');
-    await expect(page.getByText('Solo Practice')).toBeVisible();
-    await expect(page.getByText('Polyclinic Pro')).toBeVisible();
-    await expect(page.getByText('Hospital & Enterprise')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Solo Practice' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Polyclinic Pro' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Hospital & Enterprise' })).toBeVisible();
   });
 
   test('Registration onboarding wizard works as expected', async ({ page }) => {

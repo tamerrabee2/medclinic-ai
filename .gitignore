@@ -20,6 +20,8 @@ node_modules/
 .nuxt/
 dist/
 build/
+test-results/
+playwright-report/
 
 # Secrets
 *.pfx

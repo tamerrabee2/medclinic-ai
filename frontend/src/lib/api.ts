@@ -85,7 +85,7 @@ export class ApiClient {
   }
 
   // Patients
-  public static async getPatients(query: string = '', page = 1, pageSize = 20) {
+  public static async getPatients(query?: string, page = 1, pageSize = 20, signal?: AbortSignal) {
     const token = this.getToken();
     if (token?.startsWith('demo_')) {
       const allDemo = [
@@ -110,7 +110,7 @@ export class ApiClient {
       params.append('search', query);
       params.append('searchTerm', query);
     }
-    return this.request(`/api/v1/patients?${params.toString()}`);
+    return this.request(`/api/v1/patients?${params.toString()}`, { signal });
   }
 
   public static async getPatient(id: string) {

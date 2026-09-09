@@ -67,6 +67,8 @@ export default function AIAssistantPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const patientDropdownRef = useRef<HTMLDivElement>(null);
   const searchRequestIdRef = useRef<number>(0);
+  const searchAbortControllerRef = useRef<AbortController | null>(null);
+  const isInitialMountRef = useRef<boolean>(true);
 
   // Clear any legacy client-side AI keys to guarantee client privacy and security
   useEffect(() => {
@@ -77,11 +79,11 @@ export default function AIAssistantPage() {
     }
   }, []);
 
-  // Fetch real patient list from API with stale-response protection
-  const fetchPatients = async (searchTerm = '', requestId?: number) => {
+  // Fetch real patient list from API with AbortSignal and stale-response protection
+  const fetchPatients = async (searchTerm = '', requestId?: number, signal?: AbortSignal) => {
     setLoadingPatients(true);
     try {
-      const res: any = await ApiClient.getPatients(searchTerm, 1, 20);
+      const res: any = await ApiClient.getPatients(searchTerm, 1, 20, signal);
       if (requestId !== undefined && requestId !== searchRequestIdRef.current) {
         return; // Discard stale response
       }
@@ -92,21 +94,35 @@ export default function AIAssistantPage() {
         fileNumber: p.fileNumber || p.mrn || p.nationalId || 'No MRN'
       }));
       setPatients(mapped);
-    } catch {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return; // Request was aborted by newer query, do not overwrite or clear state
+      }
       setPatients([]);
     } finally {
-      setLoadingPatients(false);
+      if (!signal?.aborted) {
+        setLoadingPatients(false);
+      }
     }
   };
 
-  // Initial fetch on mount
+  // Initial fetch on mount (single decoupled load)
   useEffect(() => {
-    fetchPatients();
+    const controller = new AbortController();
+    fetchPatients('', undefined, controller.signal);
+    return () => {
+      controller.abort();
+    };
   }, []);
 
-  // Debounced patient search (300ms) with minimum 2 characters requirement
+  // Debounced patient search (300ms) with >= 2 chars check and AbortController cancellation
   useEffect(() => {
-    const currentId = ++searchRequestIdRef.current;
+    // Skip on initial mount to avoid duplicate fetch on page load
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
     const trimmed = patientSearchQuery.trim();
 
     if (trimmed.length === 1) {
@@ -114,10 +130,20 @@ export default function AIAssistantPage() {
     }
 
     const timer = setTimeout(() => {
-      fetchPatients(trimmed, currentId);
+      // Abort previous in-flight search request
+      if (searchAbortControllerRef.current) {
+        searchAbortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      searchAbortControllerRef.current = controller;
+      const currentId = ++searchRequestIdRef.current;
+
+      fetchPatients(trimmed, currentId, controller.signal);
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [patientSearchQuery]);
 
   // Close patient dropdown on outside click

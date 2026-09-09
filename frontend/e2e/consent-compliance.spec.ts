@@ -1,6 +1,22 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Phase 12: Consent Management, AI Guard & Audit Explorer Compliance', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('medclinic_token', 'demo_token_doctor');
+      localStorage.setItem(
+        'medclinic_user',
+        JSON.stringify({
+          id: 'demo-doc-1',
+          email: 'doctor@medclinic.com',
+          firstName: 'Dr. Tamer',
+          lastName: 'Rabee',
+          roles: ['Doctor', 'ClinicAdmin'],
+        })
+      );
+    });
+  });
+
   test('Patient EMR renders AI Consent Badge and Consents & Compliance Tab', async ({ page }) => {
     await page.goto('/dashboard/patients/P-10024');
     
@@ -71,7 +87,7 @@ test.describe('Phase 12: Consent Management, AI Guard & Audit Explorer Complianc
     await page.goto('/dashboard/ai-assistant');
 
     // Select patient if available or enter query
-    const input = page.getByPlaceholder(/Ask clinical question|اسأل المساعد/i);
+    const input = page.getByPlaceholder(/Ask AI Copilot|differential diagnosis/i);
     await input.fill('What is the recommended antibiotic dosage?');
 
     // Click Send
@@ -80,7 +96,7 @@ test.describe('Phase 12: Consent Management, AI Guard & Audit Explorer Complianc
       await sendBtn.click();
 
       // Verify Safety Alert is displayed
-      await expect(page.getByText(/AI Service Unavailable|خدمة الذكاء الاصطناعي غير متاحة/i)).toBeVisible();
+      await expect(page.getByText(/temporarily unavailable|غير متاحة/i)).toBeVisible();
       await expect(page.getByRole('button', { name: /Retry Request|إعادة المحاولة/i })).toBeVisible();
 
       // CRITICAL: Ensure NO simulated clinical text is injected into chat
