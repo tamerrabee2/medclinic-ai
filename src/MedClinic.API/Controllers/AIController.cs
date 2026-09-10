@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
+using MedClinic.Application.Interfaces;
+using MedClinic.Domain.Enums;
+
 namespace MedClinic.API.Controllers;
 
 /// <summary>
@@ -18,10 +21,49 @@ namespace MedClinic.API.Controllers;
 public class AIController : ControllerBase
 {
     private readonly AIService _ai;
-    public AIController(AIService ai) => _ai = ai;
+    private readonly ITenantEntitlementService _entitlement;
+    private readonly ITenantContext _tenant;
+
+    public AIController(
+        AIService ai,
+        ITenantEntitlementService entitlement,
+        ITenantContext tenant)
+    {
+        _ai = ai;
+        _entitlement = entitlement;
+        _tenant = tenant;
+    }
 
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+
+    private async Task<IActionResult?> GuardAiEntitlementAsync(CancellationToken ct)
+    {
+        if (!_tenant.ClinicId.HasValue) return null;
+        var clinicId = _tenant.ClinicId.Value;
+
+        var exec = await _entitlement.CheckCanExecuteAsync(clinicId, ClinicalAction.UseAiCopilot, ct);
+        if (!exec.IsAllowed)
+            return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
+
+        var hasFeature = await _entitlement.HasFeatureAsync(clinicId, FeatureKey.AiCopilot, ct);
+        if (!hasFeature)
+            return StatusCode(403, new { success = false, code = "feature_not_included", message = "AI Copilot is not included in your clinic's subscription plan." });
+
+        var quota = await _entitlement.CheckQuotaAsync(clinicId, MetricType.AiRequestsCount, ct);
+        if (!quota.IsAllowed)
+            return StatusCode(403, new { success = false, code = quota.Code, message = quota.Reason });
+
+        return null;
+    }
+
+    private async Task RecordAiUsageAsync(CancellationToken ct)
+    {
+        if (_tenant.ClinicId.HasValue)
+        {
+            await _entitlement.RecordUsageAsync(_tenant.ClinicId.Value, MetricType.AiRequestsCount, 1, ct);
+        }
+    }
 
     // ── Conversations ────────────────────────────────────────────────────────
 
@@ -52,7 +94,11 @@ public class AIController : ControllerBase
         [FromBody] SendMessageRequest req,
         CancellationToken ct)
     {
+        var guardResult = await GuardAiEntitlementAsync(ct);
+        if (guardResult is not null) return guardResult;
+
         var result = await _ai.SendMessageAsync(CurrentUserId, req, ct);
+        await RecordAiUsageAsync(ct);
         return Ok(new { success = true, data = result });
     }
 
@@ -77,7 +123,11 @@ public class AIController : ControllerBase
         [FromBody] AnalyzeLabRequest req,
         CancellationToken ct)
     {
+        var guardResult = await GuardAiEntitlementAsync(ct);
+        if (guardResult is not null) return guardResult;
+
         var result = await _ai.AnalyzeLabResultAsync(CurrentUserId, req, ct);
+        await RecordAiUsageAsync(ct);
         return Ok(new { success = true, data = result });
     }
 
@@ -94,7 +144,11 @@ public class AIController : ControllerBase
         [FromBody] GeneratePatientSummaryRequest req,
         CancellationToken ct)
     {
+        var guardResult = await GuardAiEntitlementAsync(ct);
+        if (guardResult is not null) return guardResult;
+
         var result = await _ai.GeneratePatientSummaryAsync(CurrentUserId, req, ct);
+        await RecordAiUsageAsync(ct);
         return Ok(new { success = true, data = result });
     }
 
@@ -111,7 +165,11 @@ public class AIController : ControllerBase
         [FromBody] AnalyzeImageRequest req,
         CancellationToken ct)
     {
+        var guardResult = await GuardAiEntitlementAsync(ct);
+        if (guardResult is not null) return guardResult;
+
         var result = await _ai.AnalyzeImageAsync(CurrentUserId, req, ct);
+        await RecordAiUsageAsync(ct);
         return Ok(new { success = true, data = result });
     }
 

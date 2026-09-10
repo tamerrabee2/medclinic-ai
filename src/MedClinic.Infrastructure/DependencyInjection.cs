@@ -81,6 +81,7 @@ public static partial class DependencyInjection
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAiDecisionAuditService, AiDecisionAuditService>();
         services.AddScoped<IConsentService, ConsentService>();
+        services.AddScoped<ITenantEntitlementService, TenantEntitlementService>();
         services.AddScoped<MedClinic.Application.Common.Interfaces.IAiConsentGuard, AiConsentGuard>();
         services.AddScoped<MedClinic.Application.Common.Interfaces.IEmailService, EmailService>();
         services.AddScoped<TenantContext>();
