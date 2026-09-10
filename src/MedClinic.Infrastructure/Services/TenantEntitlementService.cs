@@ -4,6 +4,7 @@ using MedClinic.Application.Features.Subscriptions.DTOs;
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
 using MedClinic.Domain.Enums;
+using MedClinic.Domain.Exceptions;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
@@ -13,10 +14,13 @@ namespace MedClinic.Infrastructure.Services;
 public sealed class TenantEntitlementService : ITenantEntitlementService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IKeyedLockManager _keyedLock;
+    private static readonly IKeyedLockManager _defaultLock = new KeyedLockManager();
 
-    public TenantEntitlementService(ApplicationDbContext db)
+    public TenantEntitlementService(ApplicationDbContext db, IKeyedLockManager? keyedLock = null)
     {
         _db = db;
+        _keyedLock = keyedLock ?? _defaultLock;
     }
 
     public async Task<bool> HasFeatureAsync(Guid clinicId, string featureKey, CancellationToken ct = default)
@@ -267,6 +271,10 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         TimeSpan? ttl = null,
         CancellationToken ct = default)
     {
+        // P1: Validate delta > 0
+        if (delta <= 0)
+            throw new ArgumentOutOfRangeException(nameof(delta), "Delta must be strictly positive (greater than 0).");
+
         var now = DateTime.UtcNow;
         var (periodStart, periodEnd) = GetCurrentMonthPeriod();
 
@@ -295,14 +303,32 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
                 return QuotaReservationResult.FeatureNotIncluded(FeatureKey.DicomPacs, "DICOM PACS feature is not included in the active subscription plan.");
         }
 
-        // 3. Check idempotency: Return existing reservation if already created
+        // P0: Concurrency control: Acquire in-process keyed lock per (ClinicId, MetricType, PeriodStartUtc)
+        var lockKey = $"quota:{clinicId}:{metricType}:{periodStart:yyyyMM}";
+        using var releaser = await _keyedLock.AcquireLockAsync(lockKey, ct);
+
+        // P0: Database transactional locking (PostgreSQL advisory lock when on Npgsql)
+        var isNpgsql = _db.Database.IsNpgsql();
+        await using var tx = isNpgsql ? await _db.Database.BeginTransactionAsync(ct) : null;
+
+        if (isNpgsql)
+        {
+            long advisoryKey = ComputeAdvisoryKey(lockKey);
+            await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({advisoryKey})", ct);
+        }
+
+        // 3. P2: Check idempotency scoped by (ClinicId, MetricType, IdempotencyKey)
         var existing = await _db.UsageEvents
-            .FirstOrDefaultAsync(e => e.ClinicId == clinicId && e.IdempotencyKey == idempotencyKey, ct);
+            .FirstOrDefaultAsync(e => e.ClinicId == clinicId && e.MetricType == metricType && e.IdempotencyKey == idempotencyKey, ct);
 
         if (existing is not null)
         {
             if (existing.Status is UsageEventStatus.Reserved or UsageEventStatus.Committed)
             {
+                if (tx != null)
+                {
+                    await tx.CommitAsync(ct);
+                }
                 return QuotaReservationResult.Success(
                     existing.Id,
                     existing.MetricType,
@@ -347,6 +373,10 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
 
         if (limit > 0 && (currentUsage + activeReserved + delta) > limit)
         {
+            if (tx != null)
+            {
+                await tx.RollbackAsync(ct);
+            }
             return QuotaReservationResult.QuotaExceeded(metricType, currentUsage, activeReserved, limit);
         }
 
@@ -368,6 +398,10 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
 
         _db.UsageEvents.Add(reservation);
         await _db.SaveChangesAsync(ct);
+        if (tx != null)
+        {
+            await tx.CommitAsync(ct);
+        }
 
         return QuotaReservationResult.Success(
             reservation.Id,
@@ -386,11 +420,27 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         if (reservation is null || reservation.Status == UsageEventStatus.Committed)
             return;
 
-        if (reservation.Status is UsageEventStatus.Released or UsageEventStatus.Expired)
+        var now = DateTime.UtcNow;
+
+        // P1: Check if reservation expired before commit
+        if (reservation.ExpiresAtUtc <= now || reservation.Status == UsageEventStatus.Expired)
+        {
+            reservation.Status = UsageEventStatus.Expired;
+            reservation.ReleasedAtUtc = now;
+            reservation.ReleaseReason = "Reservation expired before commit.";
+            await _db.SaveChangesAsync(ct);
+
+            throw new QuotaReservationExpiredException(
+                reservationId,
+                reservation.ExpiresAtUtc,
+                $"Cannot commit reservation '{reservationId}' because it expired at {reservation.ExpiresAtUtc:u}.");
+        }
+
+        if (reservation.Status is UsageEventStatus.Released)
             throw new InvalidOperationException($"Cannot commit reservation '{reservationId}' because it is in state '{reservation.Status}'.");
 
         reservation.Status = UsageEventStatus.Committed;
-        reservation.CommittedAtUtc = DateTime.UtcNow;
+        reservation.CommittedAtUtc = now;
 
         var metric = await _db.UsageMetrics
             .FirstOrDefaultAsync(m => m.ClinicId == reservation.ClinicId && m.MetricType == reservation.MetricType && m.PeriodStartUtc == reservation.PeriodStartUtc, ct);
@@ -405,14 +455,14 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
                 PeriodEndUtc = reservation.PeriodEndUtc,
                 QuotaLimit = 0,
                 CurrentValue = reservation.Delta,
-                LastUpdatedAtUtc = DateTime.UtcNow
+                LastUpdatedAtUtc = now
             };
             _db.UsageMetrics.Add(metric);
         }
         else
         {
             metric.CurrentValue += reservation.Delta;
-            metric.LastUpdatedAtUtc = DateTime.UtcNow;
+            metric.LastUpdatedAtUtc = now;
         }
 
         await _db.SaveChangesAsync(ct);
@@ -434,6 +484,39 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         reservation.ReleaseReason = reason;
 
         await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task<int> CleanupExpiredReservationsAsync(CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var staleReservations = await _db.UsageEvents
+            .Where(e => e.Status == UsageEventStatus.Reserved && e.ExpiresAtUtc <= now)
+            .ToListAsync(ct);
+
+        if (staleReservations.Count == 0)
+            return 0;
+
+        foreach (var r in staleReservations)
+        {
+            r.Status = UsageEventStatus.Expired;
+            r.ReleasedAtUtc = now;
+            r.ReleaseReason = "Expired by background cleanup worker.";
+        }
+
+        return await _db.SaveChangesAsync(ct);
+    }
+
+    private static long ComputeAdvisoryKey(string key)
+    {
+        unchecked
+        {
+            long hash = 1125899906842597L;
+            foreach (char c in key)
+            {
+                hash = (hash * 31) ^ c;
+            }
+            return hash;
+        }
     }
 
     public async Task<ClinicSubscriptionSummaryDto> GetSubscriptionSummaryAsync(Guid clinicId, CancellationToken ct = default)

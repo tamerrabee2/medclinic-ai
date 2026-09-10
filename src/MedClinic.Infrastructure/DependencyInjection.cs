@@ -81,8 +81,11 @@ public static partial class DependencyInjection
         services.AddScoped<IAuditService, AuditService>();
         services.AddScoped<IAiDecisionAuditService, AiDecisionAuditService>();
         services.AddScoped<IConsentService, ConsentService>();
+        // SaaS Concurrency & Entitlements
+        services.AddSingleton<IKeyedLockManager, KeyedLockManager>();
         services.AddScoped<ITenantEntitlementService, TenantEntitlementService>();
         services.AddScoped<ITenantLifecycleService, TenantLifecycleService>();
+        services.AddHostedService<MedClinic.Infrastructure.BackgroundJobs.ExpiredReservationCleanupJob>();
         services.AddScoped<MedClinic.Application.Common.Interfaces.IAiConsentGuard, AiConsentGuard>();
         services.AddScoped<MedClinic.Application.Common.Interfaces.IEmailService, EmailService>();
         services.AddScoped<TenantContext>();

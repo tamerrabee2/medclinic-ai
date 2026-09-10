@@ -76,6 +76,10 @@ public class AIController : ControllerBase
             }
             return Ok(new { success = true, data = result });
         }
+        catch (MedClinic.Domain.Exceptions.QuotaReservationExpiredException ex)
+        {
+            return StatusCode(409, new { success = false, code = "reservation_expired", message = ex.Message });
+        }
         catch (Exception ex)
         {
             if (reservation.ReservationId.HasValue)

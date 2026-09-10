@@ -57,6 +57,12 @@ public interface ITenantEntitlementService
     Task ReleaseReservationAsync(Guid reservationId, string? reason = null, CancellationToken ct = default);
 
     /// <summary>
+    /// Background/scheduled job to transition stale Reserved events whose ExpiresAtUtc has passed to Expired.
+    /// Returns the number of expired reservations cleaned up.
+    /// </summary>
+    Task<int> CleanupExpiredReservationsAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Returns the comprehensive subscription, lifecycle status, and quota breakdown for a clinic.
     /// </summary>
     Task<ClinicSubscriptionSummaryDto> GetSubscriptionSummaryAsync(Guid clinicId, CancellationToken ct = default);

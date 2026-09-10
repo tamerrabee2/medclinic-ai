@@ -31,6 +31,7 @@ public class WebAppFactory : WebApplicationFactory<Program>
             {
                 opts.UseInMemoryDatabase(_dbName);
                 opts.UseInternalServiceProvider(inMemoryProvider);
+                opts.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
             });
 
             var sp = services.BuildServiceProvider();

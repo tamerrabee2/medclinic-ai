@@ -21,8 +21,8 @@ public class UsageEventConfiguration : IEntityTypeConfiguration<UsageEvent>
         builder.Property(e => e.ReleaseReason)
             .HasMaxLength(512);
 
-        // Unique index on (ClinicId, IdempotencyKey) to guarantee idempotency per tenant
-        builder.HasIndex(e => new { e.ClinicId, e.IdempotencyKey })
+        // Unique index on (ClinicId, MetricType, IdempotencyKey) to guarantee idempotency per metric & tenant
+        builder.HasIndex(e => new { e.ClinicId, e.MetricType, e.IdempotencyKey })
             .IsUnique();
 
         // Index for querying active reservations during quota checks
