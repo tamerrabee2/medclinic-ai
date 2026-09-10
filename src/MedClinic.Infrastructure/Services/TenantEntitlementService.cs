@@ -269,6 +269,7 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         string idempotencyKey,
         string operationId,
         TimeSpan? ttl = null,
+        string? requestPayloadHash = null,
         CancellationToken ct = default)
     {
         // P1: Validate delta > 0
@@ -323,6 +324,15 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
 
         if (existing is not null)
         {
+            // P1: Check if payload mutated for the same idempotency key
+            if (!string.IsNullOrEmpty(existing.RequestPayloadHash) &&
+                !string.IsNullOrEmpty(requestPayloadHash) &&
+                !string.Equals(existing.RequestPayloadHash, requestPayloadHash, StringComparison.Ordinal))
+            {
+                if (tx != null) await tx.RollbackAsync(ct);
+                return QuotaReservationResult.Conflict("idempotency_key_reused", "The idempotency key has already been used with a different request payload.");
+            }
+
             if (existing.Status is UsageEventStatus.Reserved or UsageEventStatus.Committed)
             {
                 if (tx != null)
@@ -336,6 +346,18 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
                     0,
                     0,
                     existing.ExpiresAtUtc);
+            }
+
+            if (existing.Status == UsageEventStatus.Expired)
+            {
+                if (tx != null) await tx.RollbackAsync(ct);
+                return QuotaReservationResult.Conflict("reservation_expired", "The previous reservation for this idempotency key expired. Please retry with a new idempotency key.");
+            }
+
+            if (existing.Status == UsageEventStatus.Released)
+            {
+                if (tx != null) await tx.RollbackAsync(ct);
+                return QuotaReservationResult.Conflict("operation_released", existing.ReleaseReason ?? "The operation was previously released and cannot be re-reserved with the same idempotency key.");
             }
         }
 
@@ -391,6 +413,7 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
             OperationId = operationId,
             IdempotencyKey = idempotencyKey,
             Delta = delta,
+            RequestPayloadHash = requestPayloadHash,
             Status = UsageEventStatus.Reserved,
             ExpiresAtUtc = expiresAtUtc,
             CreatedAt = now
@@ -414,11 +437,28 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
 
     public async Task CommitReservationAsync(Guid reservationId, CancellationToken ct = default)
     {
+        // P0: Concurrency control: Lock on reservation to serialize concurrent commit attempts
+        var lockKey = $"reservation:{reservationId}";
+        using var releaser = await _keyedLock.AcquireLockAsync(lockKey, ct);
+
+        // P0: Transaction + PostgreSQL advisory lock when on Npgsql
+        var isNpgsql = _db.Database.IsNpgsql();
+        await using var tx = isNpgsql ? await _db.Database.BeginTransactionAsync(ct) : null;
+
+        if (isNpgsql)
+        {
+            long advisoryKey = ComputeAdvisoryKey(lockKey);
+            await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({advisoryKey})", ct);
+        }
+
         var reservation = await _db.UsageEvents
             .FirstOrDefaultAsync(e => e.Id == reservationId, ct);
 
         if (reservation is null || reservation.Status == UsageEventStatus.Committed)
+        {
+            if (tx != null) await tx.CommitAsync(ct);
             return;
+        }
 
         var now = DateTime.UtcNow;
 
@@ -429,6 +469,7 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
             reservation.ReleasedAtUtc = now;
             reservation.ReleaseReason = "Reservation expired before commit.";
             await _db.SaveChangesAsync(ct);
+            if (tx != null) await tx.CommitAsync(ct);
 
             throw new QuotaReservationExpiredException(
                 reservationId,
@@ -437,7 +478,10 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         }
 
         if (reservation.Status is UsageEventStatus.Released)
+        {
+            if (tx != null) await tx.RollbackAsync(ct);
             throw new InvalidOperationException($"Cannot commit reservation '{reservationId}' because it is in state '{reservation.Status}'.");
+        }
 
         reservation.Status = UsageEventStatus.Committed;
         reservation.CommittedAtUtc = now;
@@ -466,24 +510,39 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         }
 
         await _db.SaveChangesAsync(ct);
+        if (tx != null) await tx.CommitAsync(ct);
     }
 
     public async Task ReleaseReservationAsync(Guid reservationId, string? reason = null, CancellationToken ct = default)
     {
+        // P0: Concurrency lock on reservation to serialize with concurrent commits
+        var lockKey = $"reservation:{reservationId}";
+        using var releaser = await _keyedLock.AcquireLockAsync(lockKey, ct);
+
+        var isNpgsql = _db.Database.IsNpgsql();
+        await using var tx = isNpgsql ? await _db.Database.BeginTransactionAsync(ct) : null;
+
+        if (isNpgsql)
+        {
+            long advisoryKey = ComputeAdvisoryKey(lockKey);
+            await _db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({advisoryKey})", ct);
+        }
+
         var reservation = await _db.UsageEvents
             .FirstOrDefaultAsync(e => e.Id == reservationId, ct);
 
-        if (reservation is null || reservation.Status == UsageEventStatus.Released)
+        if (reservation is null || reservation.Status == UsageEventStatus.Released || reservation.Status == UsageEventStatus.Committed)
+        {
+            if (tx != null) await tx.CommitAsync(ct);
             return;
-
-        if (reservation.Status == UsageEventStatus.Committed)
-            return;
+        }
 
         reservation.Status = UsageEventStatus.Released;
         reservation.ReleasedAtUtc = DateTime.UtcNow;
         reservation.ReleaseReason = reason;
 
         await _db.SaveChangesAsync(ct);
+        if (tx != null) await tx.CommitAsync(ct);
     }
 
     public async Task<int> CleanupExpiredReservationsAsync(CancellationToken ct = default)

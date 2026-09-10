@@ -502,4 +502,245 @@ public class AtomicQuotaReservationTests
             totalReserved.Should().Be(allowedLimit, "Total reserved quota in database must strictly equal limit and never exceed it under race conditions");
         }
     }
+
+    [Fact]
+    public async Task CommitReservationAsync_UnderConcurrentDuplicateCalls_IncrementsMetricExactlyOnce()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var clinicId = Guid.NewGuid();
+        var keyedLock = new KeyedLockManager();
+
+        using (var setupDb = TestDbContextFactory.Create(dbName))
+        {
+            setupDb.Clinics.Add(new Clinic
+            {
+                Id = clinicId,
+                Name = "Commit Concurrency Clinic",
+                Slug = "commit-conc",
+                LifecycleStatus = ClinicLifecycleStatus.Active,
+                BillingStatus = BillingStatus.Current
+            });
+
+            setupDb.ClinicSubscriptions.Add(new ClinicSubscription
+            {
+                ClinicId = clinicId,
+                Tier = SubscriptionTier.Pro,
+                Status = SubscriptionStatus.Active,
+                IsActive = true,
+                StartDateUtc = DateTime.UtcNow.AddDays(-5),
+                MonthlyAiRequestsLimitSnapshot = 100,
+                FeaturesSnapshot = System.Text.Json.JsonSerializer.Serialize(new[] { FeatureKey.AiCopilot })
+            });
+
+            await setupDb.SaveChangesAsync();
+        }
+
+        Guid reservationId;
+        using (var reserveDb = TestDbContextFactory.Create(dbName))
+        {
+            var sut = new TenantEntitlementService(reserveDb, keyedLock);
+            var res = await sut.ReserveQuotaAsync(
+                clinicId,
+                MetricType.AiRequestsCount,
+                delta: 1,
+                idempotencyKey: "commit-conc-key-1",
+                operationId: "op-conc-1");
+
+            res.IsAllowed.Should().BeTrue();
+            reservationId = res.ReservationId!.Value;
+        }
+
+        // 10 concurrent commit calls across separate DbContext instances
+        var commitTasks = Enumerable.Range(1, 10).Select(async _ =>
+        {
+            using var db = TestDbContextFactory.Create(dbName);
+            var sut = new TenantEntitlementService(db, keyedLock);
+            await sut.CommitReservationAsync(reservationId);
+        }).ToArray();
+
+        await Task.WhenAll(commitTasks);
+
+        // Verify UsageMetric was incremented EXACTLY ONCE (value = 1, NOT 10)
+        using (var verifyDb = TestDbContextFactory.Create(dbName))
+        {
+            var metric = await verifyDb.UsageMetrics
+                .FirstOrDefaultAsync(m => m.ClinicId == clinicId && m.MetricType == MetricType.AiRequestsCount);
+
+            metric.Should().NotBeNull();
+            metric!.CurrentValue.Should().Be(1, "Concurrent commit calls for the same reservation must increment UsageMetric exactly once");
+
+            var reservationEvent = await verifyDb.UsageEvents.FirstAsync(e => e.Id == reservationId);
+            reservationEvent.Status.Should().Be(UsageEventStatus.Committed);
+        }
+    }
+
+    [Fact]
+    public async Task ReserveQuotaAsync_WhenKeyWasPreviouslyExpired_ReturnsConflictReservationExpired()
+    {
+        using var db = TestDbContextFactory.Create();
+        var clinicId = Guid.NewGuid();
+
+        db.Clinics.Add(new Clinic
+        {
+            Id = clinicId,
+            Name = "Expired Key Clinic",
+            Slug = "exp-key",
+            LifecycleStatus = ClinicLifecycleStatus.Active,
+            BillingStatus = BillingStatus.Current
+        });
+
+        db.ClinicSubscriptions.Add(new ClinicSubscription
+        {
+            ClinicId = clinicId,
+            Tier = SubscriptionTier.Pro,
+            Status = SubscriptionStatus.Active,
+            IsActive = true,
+            StartDateUtc = DateTime.UtcNow.AddDays(-5),
+            MonthlyAiRequestsLimitSnapshot = 100,
+            FeaturesSnapshot = System.Text.Json.JsonSerializer.Serialize(new[] { FeatureKey.AiCopilot })
+        });
+
+        // Seed expired usage event with idempotency key
+        var idempotencyKey = "expired-key-123";
+        db.UsageEvents.Add(new UsageEvent
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            MetricType = MetricType.AiRequestsCount,
+            PeriodStartUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+            PeriodEndUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1),
+            OperationId = "prev-op",
+            IdempotencyKey = idempotencyKey,
+            Delta = 1,
+            Status = UsageEventStatus.Expired,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-10),
+            CreatedAt = DateTime.UtcNow.AddMinutes(-20)
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new TenantEntitlementService(db);
+        var result = await sut.ReserveQuotaAsync(
+            clinicId,
+            MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: "new-op-attempt");
+
+        result.IsAllowed.Should().BeFalse();
+        result.Code.Should().Be("reservation_expired");
+        result.Reason.Should().Contain("expired");
+    }
+
+    [Fact]
+    public async Task ReserveQuotaAsync_WhenKeyWasPreviouslyReleased_ReturnsConflictOperationReleased()
+    {
+        using var db = TestDbContextFactory.Create();
+        var clinicId = Guid.NewGuid();
+
+        db.Clinics.Add(new Clinic
+        {
+            Id = clinicId,
+            Name = "Released Key Clinic",
+            Slug = "rel-key",
+            LifecycleStatus = ClinicLifecycleStatus.Active,
+            BillingStatus = BillingStatus.Current
+        });
+
+        db.ClinicSubscriptions.Add(new ClinicSubscription
+        {
+            ClinicId = clinicId,
+            Tier = SubscriptionTier.Pro,
+            Status = SubscriptionStatus.Active,
+            IsActive = true,
+            StartDateUtc = DateTime.UtcNow.AddDays(-5),
+            MonthlyAiRequestsLimitSnapshot = 100,
+            FeaturesSnapshot = System.Text.Json.JsonSerializer.Serialize(new[] { FeatureKey.AiCopilot })
+        });
+
+        var idempotencyKey = "released-key-456";
+        db.UsageEvents.Add(new UsageEvent
+        {
+            Id = Guid.NewGuid(),
+            ClinicId = clinicId,
+            MetricType = MetricType.AiRequestsCount,
+            PeriodStartUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+            PeriodEndUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1),
+            OperationId = "prev-op",
+            IdempotencyKey = idempotencyKey,
+            Delta = 1,
+            Status = UsageEventStatus.Released,
+            ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5),
+            ReleasedAtUtc = DateTime.UtcNow.AddMinutes(-1),
+            ReleaseReason = "Cancelled by user.",
+            CreatedAt = DateTime.UtcNow.AddMinutes(-2)
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new TenantEntitlementService(db);
+        var result = await sut.ReserveQuotaAsync(
+            clinicId,
+            MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: "new-op-attempt");
+
+        result.IsAllowed.Should().BeFalse();
+        result.Code.Should().Be("operation_released");
+        result.Reason.Should().Contain("Cancelled by user");
+    }
+
+    [Fact]
+    public async Task ReserveQuotaAsync_WhenKeyReusedWithDifferentPayload_ReturnsConflictIdempotencyKeyReused()
+    {
+        using var db = TestDbContextFactory.Create();
+        var clinicId = Guid.NewGuid();
+
+        db.Clinics.Add(new Clinic
+        {
+            Id = clinicId,
+            Name = "Payload Mutation Clinic",
+            Slug = "payload-mut",
+            LifecycleStatus = ClinicLifecycleStatus.Active,
+            BillingStatus = BillingStatus.Current
+        });
+
+        db.ClinicSubscriptions.Add(new ClinicSubscription
+        {
+            ClinicId = clinicId,
+            Tier = SubscriptionTier.Pro,
+            Status = SubscriptionStatus.Active,
+            IsActive = true,
+            StartDateUtc = DateTime.UtcNow.AddDays(-5),
+            MonthlyAiRequestsLimitSnapshot = 100,
+            FeaturesSnapshot = System.Text.Json.JsonSerializer.Serialize(new[] { FeatureKey.AiCopilot })
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new TenantEntitlementService(db);
+        var idempotencyKey = "payload-test-key";
+
+        // Initial reservation with payload hash A
+        var firstResult = await sut.ReserveQuotaAsync(
+            clinicId,
+            MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: "op-1",
+            requestPayloadHash: "HASH_PAYLOAD_A");
+
+        firstResult.IsAllowed.Should().BeTrue();
+
+        // Second request with SAME idempotency key but DIFFERENT payload hash B
+        var secondResult = await sut.ReserveQuotaAsync(
+            clinicId,
+            MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: "op-2",
+            requestPayloadHash: "HASH_PAYLOAD_B");
+
+        secondResult.IsAllowed.Should().BeFalse();
+        secondResult.Code.Should().Be("idempotency_key_reused");
+        secondResult.Reason.Should().Contain("different request payload");
+    }
 }

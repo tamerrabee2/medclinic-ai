@@ -40,7 +40,8 @@ public class AIController : ControllerBase
     private async Task<IActionResult> ExecuteWithQuotaReservationAsync<T>(
         string operationName,
         Func<Task<T>> operation,
-        CancellationToken ct)
+        CancellationToken ct,
+        string? requestPayloadHash = null)
     {
         if (!_tenant.ClinicId.HasValue)
         {
@@ -60,11 +61,17 @@ public class AIController : ControllerBase
             idempotencyKey: idempotencyKey,
             operationId: $"{operationName}-{Guid.NewGuid():N}",
             ttl: TimeSpan.FromMinutes(5),
+            requestPayloadHash: requestPayloadHash,
             ct: ct);
 
         if (!reservation.IsAllowed)
         {
-            return StatusCode(403, new { success = false, code = reservation.Code, message = reservation.Reason });
+            var statusCode = reservation.Code switch
+            {
+                "reservation_expired" or "operation_released" or "idempotency_key_reused" => StatusCodes.Status409Conflict,
+                _ => StatusCodes.Status403Forbidden
+            };
+            return StatusCode(statusCode, new { success = false, code = reservation.Code, message = reservation.Reason });
         }
 
         try
@@ -88,6 +95,13 @@ public class AIController : ControllerBase
             }
             throw;
         }
+    }
+
+    private static string ComputePayloadHash(params string?[] parts)
+    {
+        var raw = string.Join("|", parts.Where(p => !string.IsNullOrEmpty(p)));
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
+        return Convert.ToHexString(bytes);
     }
 
     // ── Conversations ────────────────────────────────────────────────────────
@@ -119,10 +133,12 @@ public class AIController : ControllerBase
         [FromBody] SendMessageRequest req,
         CancellationToken ct)
     {
+        var payloadHash = ComputePayloadHash(req.Message, req.PatientContextId?.ToString());
         return ExecuteWithQuotaReservationAsync(
             "ai-chat",
             () => _ai.SendMessageAsync(CurrentUserId, req, ct),
-            ct);
+            ct,
+            payloadHash);
     }
 
     /// <summary>Delete a conversation and all its messages</summary>

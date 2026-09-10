@@ -18,6 +18,8 @@ public class UsageEvent : BaseEntity
     public long Delta { get; set; } = 1;
     public UsageEventStatus Status { get; set; } = UsageEventStatus.Reserved;
 
+    public string? RequestPayloadHash { get; set; }
+
     public DateTime ExpiresAtUtc { get; set; }
     public DateTime? CommittedAtUtc { get; set; }
     public DateTime? ReleasedAtUtc { get; set; }

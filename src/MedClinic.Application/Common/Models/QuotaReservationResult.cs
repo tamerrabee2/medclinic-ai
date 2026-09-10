@@ -49,4 +49,11 @@ public sealed class QuotaReservationResult
         Code = "feature_not_included",
         Reason = reason ?? $"Feature '{featureKey}' is not included in the active subscription plan."
     };
+
+    public static QuotaReservationResult Conflict(string code, string reason) => new()
+    {
+        IsAllowed = false,
+        Code = code,
+        Reason = reason
+    };
 }

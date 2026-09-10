@@ -43,6 +43,7 @@ public interface ITenantEntitlementService
         string idempotencyKey,
         string operationId,
         TimeSpan? ttl = null,
+        string? requestPayloadHash = null,
         CancellationToken ct = default);
 
     /// <summary>

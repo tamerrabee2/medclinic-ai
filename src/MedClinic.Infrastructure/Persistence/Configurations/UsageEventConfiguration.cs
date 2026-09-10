@@ -21,6 +21,9 @@ public class UsageEventConfiguration : IEntityTypeConfiguration<UsageEvent>
         builder.Property(e => e.ReleaseReason)
             .HasMaxLength(512);
 
+        builder.Property(e => e.RequestPayloadHash)
+            .HasMaxLength(128);
+
         // Unique index on (ClinicId, MetricType, IdempotencyKey) to guarantee idempotency per metric & tenant
         builder.HasIndex(e => new { e.ClinicId, e.MetricType, e.IdempotencyKey })
             .IsUnique();
