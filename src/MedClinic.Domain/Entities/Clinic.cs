@@ -17,6 +17,7 @@ public class Clinic : BaseEntity
     public string? LicenseNumber { get; set; }
     public string? TaxNumber { get; set; }
     public string TimeZone { get; set; } = "UTC";
+    [System.Text.Json.Serialization.JsonIgnore]
     public string Timezone { get => TimeZone; set => TimeZone = value; }
     public string Currency { get; set; } = "USD";
     public string InvoicePrefix { get; set; } = "INV";
