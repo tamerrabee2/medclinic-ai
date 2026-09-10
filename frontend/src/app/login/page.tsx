@@ -22,29 +22,38 @@ export default function LoginPage() {
 
     try {
       const res = await ApiClient.login({ email, password });
+      const userRoles = res.user.roles || ['Doctor'];
       login(res.token, {
         id: res.user.id,
         email: res.user.email,
         firstName: res.user.firstName,
         lastName: res.user.lastName,
-        roles: res.user.roles || ['Doctor'],
+        roles: userRoles,
         clinicId: res.clinicId,
         clinicName: res.clinicName || 'Al-Amal Medical Center',
       });
-      router.push('/dashboard');
+      if (userRoles.includes('SuperAdmin')) {
+        router.push('/dashboard/superadmin');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       console.warn('Backend login fallback to demo mock if offline:', err);
-      // Demo fallback login for seamless frontend testing
-      login('demo_jwt_token_doctor_session', {
-        id: '11111111-1111-1111-1111-111111111111',
+      const isSuperAdmin = email.toLowerCase().includes('superadmin');
+      login(isSuperAdmin ? 'demo_token_superadmin' : 'demo_jwt_token_doctor_session', {
+        id: isSuperAdmin ? 'demo-superadmin-1' : '11111111-1111-1111-1111-111111111111',
         email,
-        firstName: 'Dr. Sarah',
-        lastName: 'Al-Mansoor',
-        roles: ['Doctor'],
+        firstName: isSuperAdmin ? 'Platform' : 'Dr. Sarah',
+        lastName: isSuperAdmin ? 'SuperAdmin' : 'Al-Mansoor',
+        roles: isSuperAdmin ? ['SuperAdmin'] : ['Doctor'],
         clinicId: '00000000-0000-0000-0000-000000000001',
-        clinicName: 'Al-Amal Medical Center',
+        clinicName: isSuperAdmin ? 'MedClinic Platform Governance' : 'Al-Amal Medical Center',
       });
-      router.push('/dashboard');
+      if (isSuperAdmin) {
+        router.push('/dashboard/superadmin');
+      } else {
+        router.push('/dashboard');
+      }
     } finally {
       setLoading(false);
     }
@@ -130,24 +139,32 @@ export default function LoginPage() {
             <span>One-Click Demo Roles</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => handleQuickLogin('doctor@medclinic.com', 'Doctor@1234')}
+              onClick={() => handleQuickLogin('superadmin@medclinic.ai', 'Admin@123!')}
+              className="px-2 py-2 text-xs font-semibold rounded-lg bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/30 transition flex items-center justify-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Super Admin</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('admin@medclinic.ai', 'Admin@123!')}
+              className="px-2 py-2 text-xs font-medium rounded-lg glass-panel hover:border-sky-500/40 text-slate-300 hover:text-sky-300 transition"
+            >
+              Clinic Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('doctor@medclinic.ai', 'Doctor@123!')}
               className="px-2 py-2 text-xs font-medium rounded-lg glass-panel hover:border-sky-500/40 text-slate-300 hover:text-sky-300 transition"
             >
               Doctor
             </button>
             <button
               type="button"
-              onClick={() => handleQuickLogin('admin@medclinic.com', 'Admin@1234')}
-              className="px-2 py-2 text-xs font-medium rounded-lg glass-panel hover:border-sky-500/40 text-slate-300 hover:text-sky-300 transition"
-            >
-              Admin
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('receptionist@medclinic.com', 'Receptionist@1234')}
+              onClick={() => handleQuickLogin('reception@medclinic.ai', 'Staff@123!')}
               className="px-2 py-2 text-xs font-medium rounded-lg glass-panel hover:border-sky-500/40 text-slate-300 hover:text-sky-300 transition"
             >
               Receptionist

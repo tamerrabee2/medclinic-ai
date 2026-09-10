@@ -24,36 +24,74 @@ public class DatabaseSeeder
     {
         _logger.LogInformation("Starting database seeder...");
 
+        await SeedRolesAsync(ct);
         await SeedSuperAdminAsync(ct);
         await SeedDemoClinicAsync(ct);
 
         _logger.LogInformation("Database seeder completed.");
     }
 
+    private async Task SeedRolesAsync(CancellationToken ct)
+    {
+        foreach (var roleName in Roles.All)
+        {
+            if (!await _db.Roles.AnyAsync(r => r.Name == roleName, ct))
+            {
+                _db.Roles.Add(new IdentityRole<Guid>
+                {
+                    Id = Guid.NewGuid(),
+                    Name = roleName,
+                    NormalizedName = roleName.ToUpperInvariant(),
+                    ConcurrencyStamp = Guid.NewGuid().ToString()
+                });
+            }
+        }
+        await _db.SaveChangesAsync(ct);
+    }
+
     private async Task SeedSuperAdminAsync(CancellationToken ct)
     {
         const string email = "superadmin@medclinic.ai";
-        if (await _db.Users.AnyAsync(u => u.Email == email, ct)) return;
+        var superAdmin = await _db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
 
-        var superAdmin = new ApplicationUser
+        if (superAdmin == null)
         {
-            Id                 = Guid.NewGuid(),
-            FirstName          = "Super",
-            LastName           = "Admin",
-            Email              = email,
-            UserName           = email,
-            NormalizedEmail    = email.ToUpperInvariant(),
-            NormalizedUserName = email.ToUpperInvariant(),
-            EmailConfirmed     = true,
-            IsActive           = true,
-            CreatedAt          = DateTime.UtcNow,
-            SecurityStamp      = Guid.NewGuid().ToString()
-        };
-        superAdmin.PasswordHash = _hasher.HashPassword(superAdmin, "Admin@123!");
+            superAdmin = new ApplicationUser
+            {
+                Id                 = Guid.NewGuid(),
+                FirstName          = "Super",
+                LastName           = "Admin",
+                Email              = email,
+                UserName           = email,
+                NormalizedEmail    = email.ToUpperInvariant(),
+                NormalizedUserName = email.ToUpperInvariant(),
+                EmailConfirmed     = true,
+                IsActive           = true,
+                CreatedAt          = DateTime.UtcNow,
+                SecurityStamp      = Guid.NewGuid().ToString()
+            };
+            superAdmin.PasswordHash = _hasher.HashPassword(superAdmin, "Admin@123!");
 
-        _db.Users.Add(superAdmin);
-        await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("SuperAdmin seeded: {Email}", email);
+            _db.Users.Add(superAdmin);
+            await _db.SaveChangesAsync(ct);
+            _logger.LogInformation("SuperAdmin seeded: {Email}", email);
+        }
+
+        var superAdminRole = await _db.Roles.FirstOrDefaultAsync(r => r.Name == Roles.SuperAdmin, ct);
+        if (superAdminRole != null)
+        {
+            var hasRole = await _db.UserRoles.AnyAsync(ur => ur.UserId == superAdmin.Id && ur.RoleId == superAdminRole.Id, ct);
+            if (!hasRole)
+            {
+                _db.UserRoles.Add(new IdentityUserRole<Guid>
+                {
+                    UserId = superAdmin.Id,
+                    RoleId = superAdminRole.Id
+                });
+                await _db.SaveChangesAsync(ct);
+                _logger.LogInformation("SuperAdmin assigned to role {Role}", Roles.SuperAdmin);
+            }
+        }
     }
 
     private async Task SeedDemoClinicAsync(CancellationToken ct)
