@@ -1,6 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import {
+  Permission,
+  getPermissionsForRoles,
+  parseJwtClaims,
+  hasPermission as checkPermission,
+  hasAnyPermission as checkAnyPermission,
+  hasAllPermissions as checkAllPermissions,
+  hasRole as checkRole,
+  hasAnyRole as checkAnyRole,
+} from './permissions';
 
 export interface User {
   id: string;
@@ -8,6 +18,7 @@ export interface User {
   firstName: string;
   lastName: string;
   roles: string[];
+  permissions?: string[];
   clinicId?: string;
   clinicName?: string;
 }
@@ -25,6 +36,25 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function hydrateUserPermissions(user: User, token?: string): User {
+  if (user.permissions && user.permissions.length > 0) {
+    return user;
+  }
+
+  let claimsPerms: string[] = [];
+  if (token) {
+    claimsPerms = parseJwtClaims(token).permissions;
+  }
+
+  const rolePerms = getPermissionsForRoles(user.roles || []);
+  const combined = Array.from(new Set([...claimsPerms, ...rolePerms]));
+
+  return {
+    ...user,
+    permissions: combined,
+  };
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
@@ -39,7 +69,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser) as User;
+        const hydrated = hydrateUserPermissions(parsedUser, storedToken);
+        setUser(hydrated);
         setClinicId(storedClinic);
       }
     } catch (e) {
@@ -50,14 +82,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (newToken: string, newUser: User) => {
+    const hydratedUser = hydrateUserPermissions(newUser, newToken);
     setToken(newToken);
-    setUser(newUser);
-    setClinicId(newUser.clinicId || null);
+    setUser(hydratedUser);
+    setClinicId(hydratedUser.clinicId || null);
 
     localStorage.setItem('medclinic_token', newToken);
-    localStorage.setItem('medclinic_user', JSON.stringify(newUser));
-    if (newUser.clinicId) {
-      localStorage.setItem('medclinic_clinic_id', newUser.clinicId);
+    localStorage.setItem('medclinic_user', JSON.stringify(hydratedUser));
+    if (hydratedUser.clinicId) {
+      localStorage.setItem('medclinic_clinic_id', hydratedUser.clinicId);
     }
   };
 
@@ -105,4 +138,23 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
+};
+
+export const usePermissions = () => {
+  const { user } = useAuth();
+
+  return useMemo(() => {
+    const roles = user?.roles || [];
+    const permissions = user?.permissions || [];
+
+    return {
+      roles,
+      permissions,
+      hasPermission: (permission: Permission | string) => checkPermission(user, permission),
+      hasAnyPermission: (permissionsList: (Permission | string)[]) => checkAnyPermission(user, permissionsList),
+      hasAllPermissions: (permissionsList: (Permission | string)[]) => checkAllPermissions(user, permissionsList),
+      hasRole: (role: string) => checkRole(user, role),
+      hasAnyRole: (rolesList: string[]) => checkAnyRole(user, rolesList),
+    };
+  }, [user]);
 };

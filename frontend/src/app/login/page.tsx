@@ -39,17 +39,46 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.warn('Backend login fallback to demo mock if offline:', err);
-      const isSuperAdmin = email.toLowerCase().includes('superadmin');
-      login(isSuperAdmin ? 'demo_token_superadmin' : 'demo_jwt_token_doctor_session', {
-        id: isSuperAdmin ? 'demo-superadmin-1' : '11111111-1111-1111-1111-111111111111',
+      const lower = email.toLowerCase();
+      let demoRole = 'Doctor';
+      let firstName = 'Dr. Sarah';
+      let lastName = 'Al-Mansoor';
+      let clinicName = 'Al-Amal Medical Center';
+
+      if (lower.includes('superadmin')) {
+        demoRole = 'SuperAdmin';
+        firstName = 'Platform';
+        lastName = 'SuperAdmin';
+        clinicName = 'MedClinic Platform Governance';
+      } else if (lower.includes('admin')) {
+        demoRole = 'ClinicAdmin';
+        firstName = 'Clinic';
+        lastName = 'Admin';
+      } else if (lower.includes('nurse')) {
+        demoRole = 'Nurse';
+        firstName = 'Mona';
+        lastName = 'Al-Otaibi';
+      } else if (lower.includes('reception')) {
+        demoRole = 'Receptionist';
+        firstName = 'Sara';
+        lastName = 'Al-Harbi';
+      } else if (lower.includes('lab')) {
+        demoRole = 'LabTechnician';
+        firstName = 'Kareem';
+        lastName = 'Al-Ghamdi';
+      }
+
+      login(`demo_token_${demoRole.toLowerCase()}`, {
+        id: `demo-${demoRole.toLowerCase()}-1`,
         email,
-        firstName: isSuperAdmin ? 'Platform' : 'Dr. Sarah',
-        lastName: isSuperAdmin ? 'SuperAdmin' : 'Al-Mansoor',
-        roles: isSuperAdmin ? ['SuperAdmin'] : ['Doctor'],
+        firstName,
+        lastName,
+        roles: [demoRole],
         clinicId: '00000000-0000-0000-0000-000000000001',
-        clinicName: isSuperAdmin ? 'MedClinic Platform Governance' : 'Al-Amal Medical Center',
+        clinicName,
       });
-      if (isSuperAdmin) {
+
+      if (demoRole === 'SuperAdmin') {
         router.push('/dashboard/superadmin');
       } else {
         router.push('/dashboard');
@@ -139,7 +168,7 @@ export default function LoginPage() {
             <span>One-Click Demo Roles</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             <button
               type="button"
               onClick={() => handleQuickLogin('superadmin@medclinic.ai', 'Admin@123!')}
@@ -164,8 +193,15 @@ export default function LoginPage() {
             </button>
             <button
               type="button"
-              onClick={() => handleQuickLogin('reception@medclinic.ai', 'Staff@123!')}
+              onClick={() => handleQuickLogin('nurse@medclinic.ai', 'Staff@123!')}
               className="px-2 py-2 text-xs font-medium rounded-lg glass-panel hover:border-sky-500/40 text-slate-300 hover:text-sky-300 transition"
+            >
+              Nurse
+            </button>
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('reception@medclinic.ai', 'Staff@123!')}
+              className="px-2 py-2 text-xs font-medium rounded-lg glass-panel hover:border-sky-500/40 text-slate-300 hover:text-sky-300 transition col-span-2 sm:col-span-1"
             >
               Receptionist
             </button>

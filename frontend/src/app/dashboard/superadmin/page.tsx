@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { ApiClient } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { RouteGuard } from '@/components/auth/RouteGuard';
 
 interface SuperAdminOverview {
   totalClinics: number;
@@ -429,7 +430,8 @@ export default function SuperAdminPage() {
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
+    <RouteGuard roles={['SuperAdmin']}>
+      <div className="p-6 max-w-7xl mx-auto space-y-6 animate-fade-in">
       {/* Header Banner */}
       <div className="glass-panel p-6 rounded-2xl border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-slate-950 via-indigo-950/20 to-slate-950">
         <div>
@@ -1272,6 +1274,7 @@ export default function SuperAdminPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

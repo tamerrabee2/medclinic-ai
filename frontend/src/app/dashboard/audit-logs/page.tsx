@@ -25,6 +25,7 @@ import {
 import { ApiClient } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { useAuth } from '@/lib/auth';
+import { RouteGuard } from '@/components/auth/RouteGuard';
 
 interface ConsentAuditRow {
   id: string;
@@ -301,7 +302,8 @@ export default function AuditLogsPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <RouteGuard anyPermissions={['AIDecisions.View', 'AuditLogs.Read', 'PatientConsents.Audit']}>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -638,6 +640,7 @@ export default function AuditLogsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </RouteGuard>
   );
 }

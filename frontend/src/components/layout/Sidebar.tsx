@@ -3,7 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/auth';
+import { useAuth, usePermissions } from '@/lib/auth';
+import { Permission } from '@/lib/permissions';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import {
   LayoutDashboard,
@@ -12,7 +13,6 @@ import {
   Sparkles,
   Building2,
   LogOut,
-  ChevronRight,
   ShieldCheck,
   Stethoscope,
   Activity,
@@ -28,46 +28,75 @@ import {
   UserCheck
 } from 'lucide-react';
 
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+  requiredPermission?: Permission | string;
+  requiredAnyPermissions?: (Permission | string)[];
+  requiredRoles?: string[];
+}
+
+interface NavGroup {
+  title: string;
+  items: NavItem[];
+}
+
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
   const { user, logout, clinicId } = useAuth();
+  const { hasPermission, hasAnyPermission, hasRole, hasAnyRole } = usePermissions();
   const { t } = useLanguage();
 
-  const NAV_GROUPS = [
+  const NAV_GROUPS: NavGroup[] = [
     {
       title: t.clinicalPractice,
       items: [
         { href: '/dashboard', label: t.dashboard, icon: LayoutDashboard },
-        { href: '/dashboard/patients', label: t.patients, icon: Users },
-        { href: '/dashboard/visits', label: t.visits, icon: Stethoscope },
-        { href: '/dashboard/appointments', label: t.appointments, icon: CalendarDays },
-        { href: '/dashboard/canvas', label: t.canvas, icon: Activity },
-        { href: '/dashboard/dental', label: t.dentalChart, icon: Smile },
+        { href: '/dashboard/patients', label: t.patients, icon: Users, requiredPermission: 'Patients.Read' },
+        { href: '/dashboard/visits', label: t.visits, icon: Stethoscope, requiredPermission: 'MedicalRecords.Read' },
+        { href: '/dashboard/appointments', label: t.appointments, icon: CalendarDays, requiredPermission: 'Appointments.Read' },
+        { href: '/dashboard/canvas', label: t.canvas, icon: Activity, requiredPermission: 'MedicalRecords.Read' },
+        { href: '/dashboard/dental', label: t.dentalChart, icon: Smile, requiredPermission: 'MedicalRecords.Read' },
       ]
     },
     {
       title: t.aiAndDiagnostics,
       items: [
-        { href: '/dashboard/ai-assistant', label: t.aiAssistant, icon: Sparkles, badge: 'AI' },
-        { href: '/dashboard/lab-analyzer', label: t.aiLabAnalyzer, icon: TestTubes, badge: 'Pipeline' },
-        { href: '/dashboard/laboratory', label: t.labOrdersDesk, icon: FlaskConical },
-        { href: '/dashboard/radiology', label: t.radiologyPACS, icon: ScanLine, badge: 'Vision' },
-        { href: '/dashboard/prescriptions', label: t.prescriptions, icon: Pill },
+        { href: '/dashboard/ai-assistant', label: t.aiAssistant, icon: Sparkles, badge: 'AI', requiredPermission: 'AI.Assist' },
+        { href: '/dashboard/lab-analyzer', label: t.aiLabAnalyzer, icon: TestTubes, badge: 'Pipeline', requiredAnyPermissions: ['Lab.Read', 'AI.Assist'] },
+        { href: '/dashboard/laboratory', label: t.labOrdersDesk, icon: FlaskConical, requiredPermission: 'Lab.Read' },
+        { href: '/dashboard/radiology', label: t.radiologyPACS, icon: ScanLine, badge: 'Vision', requiredPermission: 'Radiology.Read' },
+        { href: '/dashboard/prescriptions', label: t.prescriptions, icon: Pill, requiredPermission: 'Prescriptions.Sign' },
       ]
     },
     {
       title: t.operationsAndManagement,
       items: [
-        { href: '/dashboard/billing', label: t.billing, icon: ReceiptText },
-        { href: '/dashboard/analytics', label: t.analytics, icon: TrendingUp },
-        { href: '/dashboard/users', label: t.userAccounts, icon: UserCheck },
-        { href: '/dashboard/staff', label: t.clinicStaff, icon: Users },
-        { href: '/dashboard/audit-logs', label: t.auditLogs, icon: ShieldAlert },
-        { href: '/dashboard/superadmin', label: 'Super Admin', icon: ShieldCheck, badge: 'Platform' },
+        { href: '/dashboard/billing', label: t.billing, icon: ReceiptText, requiredPermission: 'Billing.Read' },
+        { href: '/dashboard/analytics', label: t.analytics, icon: TrendingUp, requiredPermission: 'Reports.Read' },
+        { href: '/dashboard/users', label: t.userAccounts, icon: UserCheck, requiredPermission: 'Users.Read' },
+        { href: '/dashboard/staff', label: t.clinicStaff, icon: Users, requiredPermission: 'Users.Read' },
+        { href: '/dashboard/audit-logs', label: t.auditLogs, icon: ShieldAlert, requiredAnyPermissions: ['AIDecisions.View', 'AuditLogs.Read'] },
+        { href: '/dashboard/superadmin', label: 'Super Admin', icon: ShieldCheck, badge: 'Platform', requiredRoles: ['SuperAdmin'] },
         { href: '/dashboard/notifications', label: t.notifications, icon: Bell, badge: '3' },
       ]
     }
   ];
+
+  const isItemVisible = (item: NavItem): boolean => {
+    if (item.requiredRoles && !hasAnyRole(item.requiredRoles)) {
+      return false;
+    }
+    if (item.requiredPermission && !hasPermission(item.requiredPermission)) {
+      return false;
+    }
+    if (item.requiredAnyPermissions && !hasAnyPermission(item.requiredAnyPermissions)) {
+      return false;
+    }
+    return true;
+  };
 
   return (
     <aside className="w-64 border-r border-slate-800/80 bg-slate-950/80 backdrop-blur-xl flex flex-col justify-between h-screen sticky top-0 shrink-0 select-none">
@@ -104,43 +133,50 @@ export const Sidebar: React.FC = () => {
 
         {/* Grouped Navigation Links */}
         <nav className="flex flex-col gap-5 pt-1">
-          {NAV_GROUPS.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-1">
-              <div className="px-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">
-                {group.title}
+          {NAV_GROUPS.map((group, gIdx) => {
+            const visibleItems = group.items.filter(isItemVisible);
+            if (visibleItems.length === 0) {
+              return null;
+            }
+
+            return (
+              <div key={gIdx} className="space-y-1">
+                <div className="px-3 text-[10px] font-bold tracking-wider text-slate-500 uppercase font-mono">
+                  {group.title}
+                </div>
+
+                <div className="space-y-0.5">
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href;
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all ${
+                          isActive
+                            ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-sm'
+                            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
+                          <span className="truncate">{item.label}</span>
+                        </div>
+
+                        {item.badge && (
+                          <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white shrink-0">
+                            {item.badge}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
-
-              <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition-all ${
-                        isActive
-                          ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
-                        <span className="truncate">{item.label}</span>
-                      </div>
-
-                      {item.badge && (
-                        <span className="px-1.5 py-0.2 text-[9px] font-bold rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white shrink-0">
-                          {item.badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </nav>
       </div>
 
