@@ -16,6 +16,12 @@ public class PostgreSqlQuotaDistributedConcurrencyTests : IAsyncLifetime
     private readonly ITestOutputHelper _output;
     private PostgreSqlContainer? _postgresContainer;
     private bool _dockerAvailable;
+    private string? _initializationError;
+
+    private static bool IsContinuousIntegration =>
+        string.Equals(Environment.GetEnvironmentVariable("CI"), "true", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase) ||
+        !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TF_BUILD"));
 
     public PostgreSqlQuotaDistributedConcurrencyTests(ITestOutputHelper output)
     {
@@ -39,7 +45,8 @@ public class PostgreSqlQuotaDistributedConcurrencyTests : IAsyncLifetime
         catch (Exception ex)
         {
             _dockerAvailable = false;
-            _output.WriteLine($"Docker / PostgreSQL container unavailable on this host: {ex.Message}. Skipping real container execution.");
+            _initializationError = ex.Message;
+            _output.WriteLine($"Docker / PostgreSQL container unavailable on this host: {ex.Message}.");
         }
     }
 
@@ -59,11 +66,24 @@ public class PostgreSqlQuotaDistributedConcurrencyTests : IAsyncLifetime
     }
 
     [Fact]
+    public void CiEnvironment_RequiresDockerAndTestcontainers()
+    {
+        if (IsContinuousIntegration)
+        {
+            _dockerAvailable.Should().BeTrue("Continuous Integration (CI) requires Docker and PostgreSQL Testcontainers to guarantee distributed concurrency enforcement.");
+        }
+    }
+
+    [Fact]
     public async Task ReserveQuotaAsync_DistributedAcrossMultipleIsolatedNodes_NeverExceedsPostgresQuota()
     {
         if (!_dockerAvailable)
         {
-            _output.WriteLine("SKIPPED: Docker daemon is not running locally. Test will run in Docker/CI environment.");
+            if (IsContinuousIntegration)
+            {
+                Assert.Fail($"Docker/Testcontainers is required in CI to execute distributed PostgreSQL concurrency tests, but could not be started: {_initializationError}");
+            }
+            _output.WriteLine($"SKIPPED_LOCAL: Docker daemon is not running locally ({_initializationError}). Test is enforced in CI.");
             return;
         }
 
@@ -145,7 +165,11 @@ public class PostgreSqlQuotaDistributedConcurrencyTests : IAsyncLifetime
     {
         if (!_dockerAvailable)
         {
-            _output.WriteLine("SKIPPED: Docker daemon is not running locally. Test will run in Docker/CI environment.");
+            if (IsContinuousIntegration)
+            {
+                Assert.Fail($"Docker/Testcontainers is required in CI to execute distributed PostgreSQL concurrency tests, but could not be started: {_initializationError}");
+            }
+            _output.WriteLine($"SKIPPED_LOCAL: Docker daemon is not running locally ({_initializationError}). Test is enforced in CI.");
             return;
         }
 

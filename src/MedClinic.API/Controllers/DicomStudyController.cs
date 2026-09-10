@@ -70,10 +70,61 @@ public class DicomStudyController : ControllerBase
             var exec = await _entitlement.CheckCanExecuteAsync(_tenant.ClinicId.Value, Domain.Enums.ClinicalAction.UseAiCopilot, ct);
             if (!exec.IsAllowed)
                 return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
+
+            var idempotencyKey = Request.Headers.TryGetValue("X-Idempotency-Key", out var headerVal) && !string.IsNullOrWhiteSpace(headerVal)
+                ? headerVal.ToString()
+                : Guid.NewGuid().ToString("N");
+
+            var payloadHash = ComputePayloadHash(new { studyId });
+
+            var reservation = await _entitlement.ReserveQuotaAsync(
+                clinicId: _tenant.ClinicId.Value,
+                metricType: Domain.Enums.MetricType.AiRequestsCount,
+                delta: 1,
+                idempotencyKey: idempotencyKey,
+                operationId: $"dicom-ai-{Guid.NewGuid():N}",
+                ttl: TimeSpan.FromMinutes(5),
+                requestPayloadHash: payloadHash,
+                ct: ct);
+
+            if (!reservation.IsAllowed)
+            {
+                var statusCode = reservation.Code switch
+                {
+                    "reservation_expired" or "operation_released" or "idempotency_key_reused" => StatusCodes.Status409Conflict,
+                    _ => StatusCodes.Status403Forbidden
+                };
+                return StatusCode(statusCode, new { success = false, code = reservation.Code, message = reservation.Reason });
+            }
+
+            try
+            {
+                var result = await _mediator.Send(new AnalyzeDicomStudyCommand(studyId), ct);
+                if (reservation.ReservationId.HasValue)
+                {
+                    await _entitlement.CommitReservationAsync(reservation.ReservationId.Value, ct);
+                }
+                return result.Succeeded ? Ok(result.Data) : BadRequest(result.Errors);
+            }
+            catch (Exception ex)
+            {
+                if (reservation.ReservationId.HasValue)
+                {
+                    await _entitlement.ReleaseReservationAsync(reservation.ReservationId.Value, ex.Message, ct);
+                }
+                throw;
+            }
         }
 
-        var result = await _mediator.Send(new AnalyzeDicomStudyCommand(studyId), ct);
-        return result.Succeeded ? Ok(result.Data) : BadRequest(result.Errors);
+        var directResult = await _mediator.Send(new AnalyzeDicomStudyCommand(studyId), ct);
+        return directResult.Succeeded ? Ok(directResult.Data) : BadRequest(directResult.Errors);
+    }
+
+    private static string ComputePayloadHash(object req)
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(req);
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json));
+        return Convert.ToHexString(bytes);
     }
 
     /// <summary>Doctor approves AI findings for a DICOM study.</summary>

@@ -13,6 +13,8 @@ public static class DependencyInjection
         services.AddScoped<MedClinic.Application.Features.Patients.Services.PatientService>();
         services.AddScoped<MedClinic.Application.Features.Appointments.Services.AppointmentService>();
 
+        services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
+
         return services;
     }
 }

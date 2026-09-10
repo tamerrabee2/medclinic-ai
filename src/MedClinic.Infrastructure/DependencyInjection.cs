@@ -114,6 +114,11 @@ public static partial class DependencyInjection
         else
             services.AddScoped<IAIProvider, MockAIProvider>();
 
+        services.AddScoped<MedClinic.Application.Common.Interfaces.IAIProvider, MockAIProvider>();
+
+        // Phase 7 PACS, FHIR, External Labs, Insurance
+        services.AddPhase7Services(configuration);
+
         // Phase 8 Advanced Clinical AI
         services.AddPhase8AdvancedClinicalAIServices();
 

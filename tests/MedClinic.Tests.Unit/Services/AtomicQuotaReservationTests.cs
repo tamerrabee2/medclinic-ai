@@ -743,4 +743,60 @@ public class AtomicQuotaReservationTests
         secondResult.Code.Should().Be("idempotency_key_reused");
         secondResult.Reason.Should().Contain("different request payload");
     }
+
+    [Fact]
+    public async Task ReserveQuotaAsync_WhenSameIdempotencyKeyAndSamePayloadHash_ReturnsExistingReservationWithSuccess()
+    {
+        using var db = TestDbContextFactory.Create();
+        var clinicId = Guid.NewGuid();
+
+        db.Clinics.Add(new Clinic
+        {
+            Id = clinicId,
+            Name = "Payload Match Clinic",
+            Slug = "payload-match",
+            LifecycleStatus = ClinicLifecycleStatus.Active,
+            BillingStatus = BillingStatus.Current
+        });
+
+        db.ClinicSubscriptions.Add(new ClinicSubscription
+        {
+            ClinicId = clinicId,
+            Tier = SubscriptionTier.Pro,
+            Status = SubscriptionStatus.Active,
+            IsActive = true,
+            StartDateUtc = DateTime.UtcNow.AddDays(-5),
+            MonthlyAiRequestsLimitSnapshot = 100,
+            FeaturesSnapshot = System.Text.Json.JsonSerializer.Serialize(new[] { FeatureKey.AiCopilot })
+        });
+        await db.SaveChangesAsync();
+
+        var sut = new TenantEntitlementService(db);
+        var idempotencyKey = "payload-match-key";
+        const string payloadHash = "CANONICAL_HASH_12345";
+
+        // Initial reservation with payload hash
+        var firstResult = await sut.ReserveQuotaAsync(
+            clinicId,
+            MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: "op-1",
+            requestPayloadHash: payloadHash);
+
+        firstResult.IsAllowed.Should().BeTrue();
+        firstResult.ReservationId.Should().NotBeNull();
+
+        // Second request with SAME idempotency key and IDENTICAL payload hash
+        var secondResult = await sut.ReserveQuotaAsync(
+            clinicId,
+            MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: "op-2",
+            requestPayloadHash: payloadHash);
+
+        secondResult.IsAllowed.Should().BeTrue();
+        secondResult.ReservationId.Should().Be(firstResult.ReservationId, "Must return the existing reservation idempotently");
+    }
 }

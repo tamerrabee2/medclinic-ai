@@ -567,15 +567,8 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
 
     private static long ComputeAdvisoryKey(string key)
     {
-        unchecked
-        {
-            long hash = 1125899906842597L;
-            foreach (char c in key)
-            {
-                hash = (hash * 31) ^ c;
-            }
-            return hash;
-        }
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key));
+        return BitConverter.ToInt64(bytes, 0);
     }
 
     public async Task<ClinicSubscriptionSummaryDto> GetSubscriptionSummaryAsync(Guid clinicId, CancellationToken ct = default)

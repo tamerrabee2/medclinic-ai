@@ -97,10 +97,10 @@ public class AIController : ControllerBase
         }
     }
 
-    private static string ComputePayloadHash(params string?[] parts)
+    private static string ComputePayloadHash(object req)
     {
-        var raw = string.Join("|", parts.Where(p => !string.IsNullOrEmpty(p)));
-        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
+        var json = System.Text.Json.JsonSerializer.Serialize(req);
+        var bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(json));
         return Convert.ToHexString(bytes);
     }
 
@@ -133,7 +133,7 @@ public class AIController : ControllerBase
         [FromBody] SendMessageRequest req,
         CancellationToken ct)
     {
-        var payloadHash = ComputePayloadHash(req.Message, req.PatientContextId?.ToString());
+        var payloadHash = ComputePayloadHash(req);
         return ExecuteWithQuotaReservationAsync(
             "ai-chat",
             () => _ai.SendMessageAsync(CurrentUserId, req, ct),
@@ -162,10 +162,12 @@ public class AIController : ControllerBase
         [FromBody] AnalyzeLabRequest req,
         CancellationToken ct)
     {
+        var payloadHash = ComputePayloadHash(req);
         return ExecuteWithQuotaReservationAsync(
             "ai-analyze-lab",
             () => _ai.AnalyzeLabResultAsync(CurrentUserId, req, ct),
-            ct);
+            ct,
+            payloadHash);
     }
 
     // ── Patient Summary ───────────────────────────────────────────────────────
@@ -181,10 +183,12 @@ public class AIController : ControllerBase
         [FromBody] GeneratePatientSummaryRequest req,
         CancellationToken ct)
     {
+        var payloadHash = ComputePayloadHash(req);
         return ExecuteWithQuotaReservationAsync(
             "ai-patient-summary",
             () => _ai.GeneratePatientSummaryAsync(CurrentUserId, req, ct),
-            ct);
+            ct,
+            payloadHash);
     }
 
     // ── Medical Image Analysis ────────────────────────────────────────────────
@@ -200,10 +204,12 @@ public class AIController : ControllerBase
         [FromBody] AnalyzeImageRequest req,
         CancellationToken ct)
     {
+        var payloadHash = ComputePayloadHash(req);
         return ExecuteWithQuotaReservationAsync(
             "ai-analyze-image",
             () => _ai.AnalyzeImageAsync(CurrentUserId, req, ct),
-            ct);
+            ct,
+            payloadHash);
     }
 
     // ── Meta ──────────────────────────────────────────────────────────────────
