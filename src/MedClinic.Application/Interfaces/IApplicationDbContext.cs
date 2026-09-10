@@ -34,6 +34,10 @@ public interface IApplicationDbContext
     DbSet<ConsentRecord> ConsentRecords { get; }
     DbSet<ConsentAuditEvent> ConsentAuditEvents { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<SubscriptionPlan> SubscriptionPlans { get; }
+    DbSet<ClinicSubscription> ClinicSubscriptions { get; }
+    DbSet<UsageMetric> UsageMetrics { get; }
+    DbSet<TenantLifecycleAuditEvent> TenantLifecycleAuditEvents { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

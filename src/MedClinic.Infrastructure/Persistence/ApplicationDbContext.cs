@@ -70,6 +70,12 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
     public DbSet<InvoiceItem> InvoiceItems { get; set; } = null!;
     public DbSet<Payment> Payments { get; set; } = null!;
 
+    // SaaS & Subscription Governance
+    public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; } = null!;
+    public DbSet<ClinicSubscription> ClinicSubscriptions { get; set; } = null!;
+    public DbSet<UsageMetric> UsageMetrics { get; set; } = null!;
+    public DbSet<TenantLifecycleAuditEvent> TenantLifecycleAuditEvents { get; set; } = null!;
+
     // System
     public DbSet<Notification> Notifications { get; set; } = null!;
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
@@ -142,6 +148,10 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
             else if (entry.State == EntityState.Deleted && (entry.Entity is ConsentRecord || entry.Entity is ConsentAuditEvent))
             {
                 throw new InvalidOperationException("Hard deletion of consent compliance records is prohibited. Use revocation or soft delete.");
+            }
+            else if (entry.State == EntityState.Deleted && entry.Entity is TenantLifecycleAuditEvent)
+            {
+                throw new InvalidOperationException("Hard deletion of tenant lifecycle audit records is prohibited.");
             }
 
             if (entry.Entity.IsLegalHold && (entry.State == EntityState.Deleted || entry.Entity.IsDeleted))

@@ -31,10 +31,22 @@ public class Clinic : BaseEntity
     public ClinicPlan Plan { get; set; } = ClinicPlan.Free;
     public DateTime? PlanExpiresAt { get; set; }
 
+    // ── SaaS Multi-Tenancy & Lifecycle Governance ──────────────────────────
+    public Enums.ClinicLifecycleStatus LifecycleStatus { get; set; } = Enums.ClinicLifecycleStatus.Trial;
+    public Enums.BillingStatus BillingStatus { get; set; } = Enums.BillingStatus.Current;
+    public Enums.TenantComplianceStatus ComplianceStatus { get; set; } = Enums.TenantComplianceStatus.Normal;
+    public DateTime? TrialEndsAt { get; set; }
+    public DateTime? SuspendedAt { get; set; }
+    public string? SuspensionReason { get; set; }
+    public Guid? SuspendedByUserId { get; set; }
+
     public ICollection<ClinicMember> Members { get; set; } = [];
     public ICollection<Doctor> Doctors { get; set; } = [];
     public ICollection<Patient> Patients { get; set; } = [];
     public ICollection<Appointment> Appointments { get; set; } = [];
+    public ICollection<ClinicSubscription> Subscriptions { get; set; } = [];
+    public ICollection<UsageMetric> UsageMetrics { get; set; } = [];
+    public ICollection<TenantLifecycleAuditEvent> LifecycleEvents { get; set; } = [];
 }
 
 public enum ClinicPlan { Free, Basic, Professional, Enterprise }

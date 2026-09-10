@@ -18,5 +18,9 @@ public class ClinicConfiguration : IEntityTypeConfiguration<Clinic>
         b.Property(c => c.TaxRate).HasColumnType("decimal(5,2)").HasDefaultValue(0m);
         b.Property(c => c.DefaultAppointmentDuration).HasDefaultValue(30);
         b.Property(c => c.AllowOnlineBooking).HasDefaultValue(true);
+        b.Property(c => c.SuspensionReason).HasMaxLength(500);
+        b.HasIndex(c => c.LifecycleStatus);
+        b.HasIndex(c => c.BillingStatus);
+        b.HasIndex(c => c.ComplianceStatus);
     }
 }
