@@ -74,6 +74,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser, I
     public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; } = null!;
     public DbSet<ClinicSubscription> ClinicSubscriptions { get; set; } = null!;
     public DbSet<UsageMetric> UsageMetrics { get; set; } = null!;
+    public DbSet<UsageEvent> UsageEvents { get; set; } = null!;
     public DbSet<TenantLifecycleAuditEvent> TenantLifecycleAuditEvents { get; set; } = null!;
 
     // System

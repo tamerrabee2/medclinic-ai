@@ -16,11 +16,16 @@ public class VisitsController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly ITenantContext _tenant;
+    private readonly ITenantEntitlementService _entitlement;
 
-    public VisitsController(ApplicationDbContext context, ITenantContext tenant)
+    public VisitsController(
+        ApplicationDbContext context,
+        ITenantContext tenant,
+        ITenantEntitlementService entitlement)
     {
         _context = context;
         _tenant = tenant;
+        _entitlement = entitlement;
     }
 
     private Guid ClinicId => _tenant.ClinicId
@@ -170,6 +175,10 @@ public class VisitsController : BaseController
     public async Task<IActionResult> Create([FromBody] CreateVisitRequest request, CancellationToken ct)
     {
         var clinicId = ClinicId;
+
+        var exec = await _entitlement.CheckCanExecuteAsync(clinicId, ClinicalAction.CreateVisit, ct);
+        if (!exec.IsAllowed)
+            return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
 
         // Validate patient & doctor belong to clinic
         var patientExists = await _context.Patients

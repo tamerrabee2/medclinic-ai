@@ -258,6 +258,184 @@ public sealed class TenantEntitlementService : ITenantEntitlementService
         await _db.SaveChangesAsync(ct);
     }
 
+    public async Task<QuotaReservationResult> ReserveQuotaAsync(
+        Guid clinicId,
+        MetricType metricType,
+        long delta,
+        string idempotencyKey,
+        string operationId,
+        TimeSpan? ttl = null,
+        CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+        var (periodStart, periodEnd) = GetCurrentMonthPeriod();
+
+        // 1. Verify tenant suspension matrix
+        var clinic = await _db.Clinics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == clinicId, ct);
+
+        if (clinic is null)
+            return QuotaReservationResult.Suspended("Clinic not found.");
+
+        if (clinic.LifecycleStatus is ClinicLifecycleStatus.Suspended or ClinicLifecycleStatus.Cancelled)
+            return QuotaReservationResult.Suspended(clinic.SuspensionReason ?? "Clinic operations are suspended. Operational reservations cannot be issued.");
+
+        // 2. Verify feature entitlement
+        if (metricType == MetricType.AiRequestsCount)
+        {
+            var hasAi = await HasFeatureAsync(clinicId, FeatureKey.AiCopilot, ct);
+            if (!hasAi)
+                return QuotaReservationResult.FeatureNotIncluded(FeatureKey.AiCopilot, "AI Copilot feature is not included in the active subscription plan.");
+        }
+        else if (metricType == MetricType.DicomStudiesCount)
+        {
+            var hasDicom = await HasFeatureAsync(clinicId, FeatureKey.DicomPacs, ct);
+            if (!hasDicom)
+                return QuotaReservationResult.FeatureNotIncluded(FeatureKey.DicomPacs, "DICOM PACS feature is not included in the active subscription plan.");
+        }
+
+        // 3. Check idempotency: Return existing reservation if already created
+        var existing = await _db.UsageEvents
+            .FirstOrDefaultAsync(e => e.ClinicId == clinicId && e.IdempotencyKey == idempotencyKey, ct);
+
+        if (existing is not null)
+        {
+            if (existing.Status is UsageEventStatus.Reserved or UsageEventStatus.Committed)
+            {
+                return QuotaReservationResult.Success(
+                    existing.Id,
+                    existing.MetricType,
+                    existing.Delta,
+                    0,
+                    0,
+                    existing.ExpiresAtUtc);
+            }
+        }
+
+        // 4. Determine quota limit from active subscription snapshot or trial fallback
+        var subscription = await _db.ClinicSubscriptions
+            .AsNoTracking()
+            .Where(s => s.ClinicId == clinicId && s.IsActive && s.Status == SubscriptionStatus.Active)
+            .OrderByDescending(s => s.StartDateUtc)
+            .FirstOrDefaultAsync(ct);
+
+        bool isTrial = clinic.LifecycleStatus == ClinicLifecycleStatus.Trial;
+
+        long limit = metricType switch
+        {
+            MetricType.AiRequestsCount => subscription?.MonthlyAiRequestsLimitSnapshot ?? (isTrial ? 1500 : 100),
+            MetricType.DicomStudiesCount => subscription?.MaxDicomStudiesMonthlySnapshot ?? (isTrial ? 250 : 0),
+            MetricType.StorageBytes => subscription?.MaxStorageBytesSnapshot ?? 5L * 1024 * 1024 * 1024,
+            _ => 0
+        };
+
+        // 5. Query current committed usage
+        var currentMetric = await _db.UsageMetrics
+            .AsNoTracking()
+            .FirstOrDefaultAsync(m => m.ClinicId == clinicId && m.MetricType == metricType && m.PeriodStartUtc == periodStart, ct);
+        long currentUsage = currentMetric?.CurrentValue ?? 0;
+
+        // 6. Query sum of active reserved events (not yet committed, not expired)
+        long activeReserved = await _db.UsageEvents
+            .Where(e => e.ClinicId == clinicId
+                && e.MetricType == metricType
+                && e.Status == UsageEventStatus.Reserved
+                && e.PeriodStartUtc == periodStart
+                && e.ExpiresAtUtc > now)
+            .SumAsync(e => e.Delta, ct);
+
+        if (limit > 0 && (currentUsage + activeReserved + delta) > limit)
+        {
+            return QuotaReservationResult.QuotaExceeded(metricType, currentUsage, activeReserved, limit);
+        }
+
+        // 7. Atomically insert reservation
+        var expiresAtUtc = now.Add(ttl ?? TimeSpan.FromMinutes(5));
+        var reservation = new UsageEvent
+        {
+            ClinicId = clinicId,
+            MetricType = metricType,
+            PeriodStartUtc = periodStart,
+            PeriodEndUtc = periodEnd,
+            OperationId = operationId,
+            IdempotencyKey = idempotencyKey,
+            Delta = delta,
+            Status = UsageEventStatus.Reserved,
+            ExpiresAtUtc = expiresAtUtc,
+            CreatedAt = now
+        };
+
+        _db.UsageEvents.Add(reservation);
+        await _db.SaveChangesAsync(ct);
+
+        return QuotaReservationResult.Success(
+            reservation.Id,
+            metricType,
+            currentUsage,
+            activeReserved + delta,
+            limit,
+            expiresAtUtc);
+    }
+
+    public async Task CommitReservationAsync(Guid reservationId, CancellationToken ct = default)
+    {
+        var reservation = await _db.UsageEvents
+            .FirstOrDefaultAsync(e => e.Id == reservationId, ct);
+
+        if (reservation is null || reservation.Status == UsageEventStatus.Committed)
+            return;
+
+        if (reservation.Status is UsageEventStatus.Released or UsageEventStatus.Expired)
+            throw new InvalidOperationException($"Cannot commit reservation '{reservationId}' because it is in state '{reservation.Status}'.");
+
+        reservation.Status = UsageEventStatus.Committed;
+        reservation.CommittedAtUtc = DateTime.UtcNow;
+
+        var metric = await _db.UsageMetrics
+            .FirstOrDefaultAsync(m => m.ClinicId == reservation.ClinicId && m.MetricType == reservation.MetricType && m.PeriodStartUtc == reservation.PeriodStartUtc, ct);
+
+        if (metric is null)
+        {
+            metric = new UsageMetric
+            {
+                ClinicId = reservation.ClinicId,
+                MetricType = reservation.MetricType,
+                PeriodStartUtc = reservation.PeriodStartUtc,
+                PeriodEndUtc = reservation.PeriodEndUtc,
+                QuotaLimit = 0,
+                CurrentValue = reservation.Delta,
+                LastUpdatedAtUtc = DateTime.UtcNow
+            };
+            _db.UsageMetrics.Add(metric);
+        }
+        else
+        {
+            metric.CurrentValue += reservation.Delta;
+            metric.LastUpdatedAtUtc = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    public async Task ReleaseReservationAsync(Guid reservationId, string? reason = null, CancellationToken ct = default)
+    {
+        var reservation = await _db.UsageEvents
+            .FirstOrDefaultAsync(e => e.Id == reservationId, ct);
+
+        if (reservation is null || reservation.Status == UsageEventStatus.Released)
+            return;
+
+        if (reservation.Status == UsageEventStatus.Committed)
+            return;
+
+        reservation.Status = UsageEventStatus.Released;
+        reservation.ReleasedAtUtc = DateTime.UtcNow;
+        reservation.ReleaseReason = reason;
+
+        await _db.SaveChangesAsync(ct);
+    }
+
     public async Task<ClinicSubscriptionSummaryDto> GetSubscriptionSummaryAsync(Guid clinicId, CancellationToken ct = default)
     {
         var clinic = await _db.Clinics

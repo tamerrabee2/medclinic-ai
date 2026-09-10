@@ -37,31 +37,52 @@ public class AIController : ControllerBase
     private Guid CurrentUserId =>
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
-    private async Task<IActionResult?> GuardAiEntitlementAsync(CancellationToken ct)
+    private async Task<IActionResult> ExecuteWithQuotaReservationAsync<T>(
+        string operationName,
+        Func<Task<T>> operation,
+        CancellationToken ct)
     {
-        if (!_tenant.ClinicId.HasValue) return null;
-        var clinicId = _tenant.ClinicId.Value;
-
-        var exec = await _entitlement.CheckCanExecuteAsync(clinicId, ClinicalAction.UseAiCopilot, ct);
-        if (!exec.IsAllowed)
-            return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
-
-        var hasFeature = await _entitlement.HasFeatureAsync(clinicId, FeatureKey.AiCopilot, ct);
-        if (!hasFeature)
-            return StatusCode(403, new { success = false, code = "feature_not_included", message = "AI Copilot is not included in your clinic's subscription plan." });
-
-        var quota = await _entitlement.CheckQuotaAsync(clinicId, MetricType.AiRequestsCount, ct);
-        if (!quota.IsAllowed)
-            return StatusCode(403, new { success = false, code = quota.Code, message = quota.Reason });
-
-        return null;
-    }
-
-    private async Task RecordAiUsageAsync(CancellationToken ct)
-    {
-        if (_tenant.ClinicId.HasValue)
+        if (!_tenant.ClinicId.HasValue)
         {
-            await _entitlement.RecordUsageAsync(_tenant.ClinicId.Value, MetricType.AiRequestsCount, 1, ct);
+            var directResult = await operation();
+            return Ok(new { success = true, data = directResult });
+        }
+
+        var clinicId = _tenant.ClinicId.Value;
+        var idempotencyKey = Request.Headers.TryGetValue("X-Idempotency-Key", out var headerVal) && !string.IsNullOrWhiteSpace(headerVal)
+            ? headerVal.ToString()
+            : Guid.NewGuid().ToString("N");
+
+        var reservation = await _entitlement.ReserveQuotaAsync(
+            clinicId: clinicId,
+            metricType: MetricType.AiRequestsCount,
+            delta: 1,
+            idempotencyKey: idempotencyKey,
+            operationId: $"{operationName}-{Guid.NewGuid():N}",
+            ttl: TimeSpan.FromMinutes(5),
+            ct: ct);
+
+        if (!reservation.IsAllowed)
+        {
+            return StatusCode(403, new { success = false, code = reservation.Code, message = reservation.Reason });
+        }
+
+        try
+        {
+            var result = await operation();
+            if (reservation.ReservationId.HasValue)
+            {
+                await _entitlement.CommitReservationAsync(reservation.ReservationId.Value, ct);
+            }
+            return Ok(new { success = true, data = result });
+        }
+        catch (Exception ex)
+        {
+            if (reservation.ReservationId.HasValue)
+            {
+                await _entitlement.ReleaseReservationAsync(reservation.ReservationId.Value, ex.Message, ct);
+            }
+            throw;
         }
     }
 
@@ -90,16 +111,14 @@ public class AIController : ControllerBase
     /// </summary>
     [HttpPost("chat")]
     [Authorize(Policy = Permissions.AIAnalysis)]
-    public async Task<IActionResult> Chat(
+    public Task<IActionResult> Chat(
         [FromBody] SendMessageRequest req,
         CancellationToken ct)
     {
-        var guardResult = await GuardAiEntitlementAsync(ct);
-        if (guardResult is not null) return guardResult;
-
-        var result = await _ai.SendMessageAsync(CurrentUserId, req, ct);
-        await RecordAiUsageAsync(ct);
-        return Ok(new { success = true, data = result });
+        return ExecuteWithQuotaReservationAsync(
+            "ai-chat",
+            () => _ai.SendMessageAsync(CurrentUserId, req, ct),
+            ct);
     }
 
     /// <summary>Delete a conversation and all its messages</summary>
@@ -119,16 +138,14 @@ public class AIController : ControllerBase
     /// </summary>
     [HttpPost("analyze/lab")]
     [Authorize(Policy = Permissions.AIAnalysis)]
-    public async Task<IActionResult> AnalyzeLab(
+    public Task<IActionResult> AnalyzeLab(
         [FromBody] AnalyzeLabRequest req,
         CancellationToken ct)
     {
-        var guardResult = await GuardAiEntitlementAsync(ct);
-        if (guardResult is not null) return guardResult;
-
-        var result = await _ai.AnalyzeLabResultAsync(CurrentUserId, req, ct);
-        await RecordAiUsageAsync(ct);
-        return Ok(new { success = true, data = result });
+        return ExecuteWithQuotaReservationAsync(
+            "ai-analyze-lab",
+            () => _ai.AnalyzeLabResultAsync(CurrentUserId, req, ct),
+            ct);
     }
 
     // ── Patient Summary ───────────────────────────────────────────────────────
@@ -140,16 +157,14 @@ public class AIController : ControllerBase
     /// </summary>
     [HttpPost("analyze/patient-summary")]
     [Authorize(Policy = Permissions.AIAnalysis)]
-    public async Task<IActionResult> GeneratePatientSummary(
+    public Task<IActionResult> GeneratePatientSummary(
         [FromBody] GeneratePatientSummaryRequest req,
         CancellationToken ct)
     {
-        var guardResult = await GuardAiEntitlementAsync(ct);
-        if (guardResult is not null) return guardResult;
-
-        var result = await _ai.GeneratePatientSummaryAsync(CurrentUserId, req, ct);
-        await RecordAiUsageAsync(ct);
-        return Ok(new { success = true, data = result });
+        return ExecuteWithQuotaReservationAsync(
+            "ai-patient-summary",
+            () => _ai.GeneratePatientSummaryAsync(CurrentUserId, req, ct),
+            ct);
     }
 
     // ── Medical Image Analysis ────────────────────────────────────────────────
@@ -161,16 +176,14 @@ public class AIController : ControllerBase
     /// </summary>
     [HttpPost("analyze/image")]
     [Authorize(Policy = Permissions.AIAnalysis)]
-    public async Task<IActionResult> AnalyzeImage(
+    public Task<IActionResult> AnalyzeImage(
         [FromBody] AnalyzeImageRequest req,
         CancellationToken ct)
     {
-        var guardResult = await GuardAiEntitlementAsync(ct);
-        if (guardResult is not null) return guardResult;
-
-        var result = await _ai.AnalyzeImageAsync(CurrentUserId, req, ct);
-        await RecordAiUsageAsync(ct);
-        return Ok(new { success = true, data = result });
+        return ExecuteWithQuotaReservationAsync(
+            "ai-analyze-image",
+            () => _ai.AnalyzeImageAsync(CurrentUserId, req, ct),
+            ct);
     }
 
     // ── Meta ──────────────────────────────────────────────────────────────────

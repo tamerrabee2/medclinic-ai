@@ -15,11 +15,16 @@ public class AppointmentsController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly ITenantContext _tenant;
+    private readonly ITenantEntitlementService _entitlement;
 
-    public AppointmentsController(ApplicationDbContext context, ITenantContext tenant)
+    public AppointmentsController(
+        ApplicationDbContext context,
+        ITenantContext tenant,
+        ITenantEntitlementService entitlement)
     {
         _context = context;
         _tenant = tenant;
+        _entitlement = entitlement;
     }
 
     private Guid ClinicId => _tenant.ClinicId
@@ -100,6 +105,10 @@ public class AppointmentsController : BaseController
     public async Task<IActionResult> Create([FromBody] CreateAppointmentRequest request, CancellationToken ct)
     {
         var clinicId = ClinicId;
+
+        var exec = await _entitlement.CheckCanExecuteAsync(clinicId, ClinicalAction.CreateAppointment, ct);
+        if (!exec.IsAllowed)
+            return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
 
         // Check doctor belongs to clinic
         var doctorExists = await _context.Doctors

@@ -37,6 +37,7 @@ public interface IApplicationDbContext
     DbSet<SubscriptionPlan> SubscriptionPlans { get; }
     DbSet<ClinicSubscription> ClinicSubscriptions { get; }
     DbSet<UsageMetric> UsageMetrics { get; }
+    DbSet<UsageEvent> UsageEvents { get; }
     DbSet<TenantLifecycleAuditEvent> TenantLifecycleAuditEvents { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

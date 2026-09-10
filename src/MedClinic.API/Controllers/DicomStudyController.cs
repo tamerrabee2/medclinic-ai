@@ -1,4 +1,5 @@
 using MediatR;
+using MedClinic.Application.Interfaces;
 using MedClinic.Application.Features.DICOM.Commands;
 using MedClinic.Application.Features.DICOM.Queries;
 using Microsoft.AspNetCore.Authorization;
@@ -12,8 +13,18 @@ namespace MedClinic.API.Controllers;
 public class DicomStudyController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ITenantContext _tenant;
+    private readonly ITenantEntitlementService _entitlement;
 
-    public DicomStudyController(IMediator mediator) => _mediator = mediator;
+    public DicomStudyController(
+        IMediator mediator,
+        ITenantContext tenant,
+        ITenantEntitlementService entitlement)
+    {
+        _mediator = mediator;
+        _tenant = tenant;
+        _entitlement = entitlement;
+    }
 
     /// <summary>List all DICOM studies for a patient.</summary>
     [HttpGet]
@@ -38,6 +49,13 @@ public class DicomStudyController : ControllerBase
         IFormFile dicomFile,
         CancellationToken ct)
     {
+        if (_tenant.ClinicId.HasValue)
+        {
+            var exec = await _entitlement.CheckCanExecuteAsync(_tenant.ClinicId.Value, Domain.Enums.ClinicalAction.UploadDicom, ct);
+            if (!exec.IsAllowed)
+                return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
+        }
+
         var result = await _mediator.Send(new UploadDicomStudyCommand(
             patientId, visitId, dicomFile, modality, studyDescription), ct);
         return result.Succeeded ? Ok(result.Data) : BadRequest(result.Errors);
@@ -47,6 +65,13 @@ public class DicomStudyController : ControllerBase
     [HttpPost("{studyId}/analyze")]
     public async Task<IActionResult> Analyze(Guid studyId, CancellationToken ct)
     {
+        if (_tenant.ClinicId.HasValue)
+        {
+            var exec = await _entitlement.CheckCanExecuteAsync(_tenant.ClinicId.Value, Domain.Enums.ClinicalAction.UseAiCopilot, ct);
+            if (!exec.IsAllowed)
+                return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
+        }
+
         var result = await _mediator.Send(new AnalyzeDicomStudyCommand(studyId), ct);
         return result.Succeeded ? Ok(result.Data) : BadRequest(result.Errors);
     }

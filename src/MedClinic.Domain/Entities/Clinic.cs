@@ -47,6 +47,7 @@ public class Clinic : BaseEntity
     public ICollection<Appointment> Appointments { get; set; } = [];
     public ICollection<ClinicSubscription> Subscriptions { get; set; } = [];
     public ICollection<UsageMetric> UsageMetrics { get; set; } = [];
+    public ICollection<UsageEvent> UsageEvents { get; set; } = [];
     public ICollection<TenantLifecycleAuditEvent> LifecycleEvents { get; set; } = [];
 }
 

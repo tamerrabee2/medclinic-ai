@@ -33,6 +33,30 @@ public interface ITenantEntitlementService
     Task RecordUsageAsync(Guid clinicId, MetricType metricType, long amount = 1, CancellationToken ct = default);
 
     /// <summary>
+    /// Atomically reserves quota for a tenant operation before execution.
+    /// Prevents concurrency overruns by locking in the reservation delta against active + reserved quotas.
+    /// </summary>
+    Task<QuotaReservationResult> ReserveQuotaAsync(
+        Guid clinicId,
+        MetricType metricType,
+        long delta,
+        string idempotencyKey,
+        string operationId,
+        TimeSpan? ttl = null,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Commits an existing quota reservation upon successful operation completion.
+    /// Updates status to Committed and increments current usage metric.
+    /// </summary>
+    Task CommitReservationAsync(Guid reservationId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Releases a reserved quota allocation on operation failure or cancellation.
+    /// </summary>
+    Task ReleaseReservationAsync(Guid reservationId, string? reason = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Returns the comprehensive subscription, lifecycle status, and quota breakdown for a clinic.
     /// </summary>
     Task<ClinicSubscriptionSummaryDto> GetSubscriptionSummaryAsync(Guid clinicId, CancellationToken ct = default);

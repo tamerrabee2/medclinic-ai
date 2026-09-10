@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Domain.Enums;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Common;
 using MedClinic.Shared.Constants;
@@ -11,15 +12,22 @@ using Microsoft.EntityFrameworkCore;
 namespace MedClinic.API.Controllers;
 
 [Authorize]
+[Route("api/v1/lab-orders")]
+[Route("api/v1/laborders")]
 public class LabOrdersController : BaseController
 {
     private readonly ApplicationDbContext _context;
     private readonly ITenantContext _tenant;
+    private readonly ITenantEntitlementService _entitlement;
 
-    public LabOrdersController(ApplicationDbContext context, ITenantContext tenant)
+    public LabOrdersController(
+        ApplicationDbContext context,
+        ITenantContext tenant,
+        ITenantEntitlementService entitlement)
     {
         _context = context;
         _tenant  = tenant;
+        _entitlement = entitlement;
     }
 
     private Guid ClinicId => _tenant.ClinicId
@@ -162,6 +170,10 @@ public class LabOrdersController : BaseController
         CancellationToken ct)
     {
         var clinicId = ClinicId;
+
+        var exec = await _entitlement.CheckCanExecuteAsync(clinicId, ClinicalAction.OrderLab, ct);
+        if (!exec.IsAllowed)
+            return StatusCode(403, new { success = false, code = exec.Code, message = exec.Reason });
 
         var patientExists = await _context.Patients
             .AnyAsync(p => p.Id == request.PatientId && p.ClinicId == clinicId, ct);
