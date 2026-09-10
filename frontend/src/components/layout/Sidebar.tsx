@@ -63,6 +63,7 @@ export const Sidebar: React.FC = () => {
         { href: '/dashboard/users', label: t.userAccounts, icon: UserCheck },
         { href: '/dashboard/staff', label: t.clinicStaff, icon: Users },
         { href: '/dashboard/audit-logs', label: t.auditLogs, icon: ShieldAlert },
+        { href: '/dashboard/superadmin', label: 'Super Admin', icon: ShieldCheck, badge: 'Platform' },
         { href: '/dashboard/notifications', label: t.notifications, icon: Bell, badge: '3' },
       ]
     }
