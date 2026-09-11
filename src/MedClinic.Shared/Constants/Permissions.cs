@@ -21,7 +21,15 @@ public static class Permissions
     public const string MedicalRecordsDelete = "MedicalRecords.Delete";
 
     // ── Prescriptions ─────────────────────────────────────────────────────
-    public const string PrescriptionsSign = "Prescriptions.Sign";
+    public const string PrescriptionsRead   = "Prescriptions.Read";
+    public const string PrescriptionsCreate = "Prescriptions.Create";
+    public const string PrescriptionsUpdate = "Prescriptions.Update";
+    public const string PrescriptionsSign   = "Prescriptions.Sign";
+    public const string PrescriptionsVerify = "Prescriptions.Verify";
+
+    // ── Notifications ─────────────────────────────────────────────────────
+    public const string NotificationsRead   = "Notifications.Read";
+    public const string NotificationsManage = "Notifications.Manage";
 
     // ── Lab ───────────────────────────────────────────────────────────────
     public const string LabRead   = "Lab.Read";

@@ -1,5 +1,6 @@
 using MedClinic.Application.Interfaces;
 using MedClinic.Domain.Entities;
+using MedClinic.Infrastructure.Identity;
 using MedClinic.Infrastructure.Persistence;
 using MedClinic.Shared.Common;
 using Microsoft.AspNetCore.Authorization;
@@ -114,7 +115,8 @@ public class AuthController : BaseController
                 Email = user.Email!,
                 PreferredLanguage = user.PreferredLanguage,
                 AvatarUrl = user.AvatarUrl,
-                Roles = [.. roles]
+                Roles = [.. roles],
+                Permissions = PermissionClaimsFactory.GetPermissionsForRoles(roles).ToList()
             },
             Clinics = clinics.Select(c => new ClinicBriefDto(c.Id, c.Name, c.Slug, c.Role)).ToList()
         });
@@ -248,6 +250,7 @@ public class AuthController : BaseController
             PreferredLanguage = user.PreferredLanguage,
             AvatarUrl = user.AvatarUrl,
             Roles = [.. roles],
+            Permissions = PermissionClaimsFactory.GetPermissionsForRoles(roles).ToList(),
             Clinics = clinics
         });
     }
@@ -298,6 +301,7 @@ public record UserDto
     public string PreferredLanguage { get; init; } = "en";
     public string? AvatarUrl { get; init; }
     public List<string> Roles { get; init; } = [];
+    public List<string> Permissions { get; init; } = [];
 }
 
 public record UserProfileDto : UserDto

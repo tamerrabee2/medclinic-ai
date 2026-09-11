@@ -51,7 +51,10 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.AppointmentsUpdate, Permissions.AppointmentsCancel,
             Permissions.MedicalRecordsRead,   Permissions.MedicalRecordsCreate,
             Permissions.MedicalRecordsUpdate, Permissions.MedicalRecordsDelete,
-            Permissions.PrescriptionsSign,
+            Permissions.PrescriptionsRead, Permissions.PrescriptionsCreate,
+            Permissions.PrescriptionsUpdate, Permissions.PrescriptionsSign,
+            Permissions.PrescriptionsVerify,
+            Permissions.NotificationsRead, Permissions.NotificationsManage,
             Permissions.LabRead,   Permissions.LabCreate,
             Permissions.LabUpdate, Permissions.LabEnterResults,
             Permissions.RadiologyRead,   Permissions.RadiologyCreate,
@@ -77,7 +80,10 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.AppointmentsUpdate, Permissions.AppointmentsCancel,
             Permissions.MedicalRecordsRead,   Permissions.MedicalRecordsCreate,
             Permissions.MedicalRecordsUpdate,
-            Permissions.PrescriptionsSign,
+            Permissions.PrescriptionsRead, Permissions.PrescriptionsCreate,
+            Permissions.PrescriptionsUpdate, Permissions.PrescriptionsSign,
+            Permissions.PrescriptionsVerify,
+            Permissions.NotificationsRead, Permissions.NotificationsManage,
             Permissions.LabRead,   Permissions.LabCreate,
             Permissions.LabUpdate, Permissions.LabEnterResults,
             Permissions.RadiologyRead,   Permissions.RadiologyCreate,
@@ -99,7 +105,9 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.PatientsRead, Permissions.PatientsCreate, Permissions.PatientsUpdate,
             Permissions.AppointmentsRead, Permissions.AppointmentsCreate, Permissions.AppointmentsUpdate,
             Permissions.MedicalRecordsRead, Permissions.MedicalRecordsCreate, Permissions.MedicalRecordsUpdate,
-            Permissions.PrescriptionsSign,
+            Permissions.PrescriptionsRead, Permissions.PrescriptionsCreate,
+            Permissions.PrescriptionsUpdate, Permissions.PrescriptionsSign,
+            Permissions.NotificationsRead,
             Permissions.LabRead, Permissions.LabCreate, Permissions.LabUpdate,
             Permissions.RadiologyRead, Permissions.RadiologyCreate, Permissions.RadiologyUpdate,
             Permissions.BillingRead,
@@ -116,6 +124,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.PatientsRead, Permissions.PatientsCreate, Permissions.PatientsUpdate,
             Permissions.AppointmentsRead, Permissions.AppointmentsCreate, Permissions.AppointmentsUpdate,
             Permissions.MedicalRecordsRead, Permissions.MedicalRecordsCreate, Permissions.MedicalRecordsUpdate,
+            Permissions.PrescriptionsRead,
+            Permissions.NotificationsRead,
             Permissions.LabRead, Permissions.LabCreate,
             Permissions.RadiologyRead,
             Permissions.BillingRead,
@@ -128,12 +138,14 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
             Permissions.AppointmentsRead, Permissions.AppointmentsCreate,
             Permissions.AppointmentsUpdate, Permissions.AppointmentsCancel,
             Permissions.BillingRead, Permissions.BillingCreate,
+            Permissions.NotificationsRead,
             Permissions.PatientConsentsView
         ],
 
         [Roles.LabTechnician] =
         [
             Permissions.PatientsRead,
+            Permissions.NotificationsRead,
             Permissions.LabRead, Permissions.LabCreate,
             Permissions.LabUpdate, Permissions.LabEnterResults
         ],
@@ -141,6 +153,7 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
         [Roles.Radiologist] =
         [
             Permissions.PatientsRead,
+            Permissions.NotificationsRead,
             Permissions.RadiologyRead,   Permissions.RadiologyCreate,
             Permissions.RadiologyUpdate, Permissions.RadiologyReport,
             Permissions.RadiologyAI,
@@ -151,6 +164,8 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
         [
             Permissions.PatientsRead,
             Permissions.MedicalRecordsRead,
+            Permissions.PrescriptionsRead, Permissions.PrescriptionsVerify,
+            Permissions.NotificationsRead,
             Permissions.BillingRead, Permissions.BillingCreate, Permissions.BillingUpdate
         ],
 
@@ -158,6 +173,7 @@ public class PermissionClaimsFactory : UserClaimsPrincipalFactory<ApplicationUse
         [
             Permissions.BillingRead, Permissions.BillingCreate,
             Permissions.BillingUpdate, Permissions.BillingDelete,
+            Permissions.NotificationsRead,
             Permissions.ReportsRead, Permissions.ReportsExport
         ]
     };

@@ -84,6 +84,10 @@ export class ApiClient {
     });
   }
 
+  public static async getMe() {
+    return this.request('/api/v1/auth/me');
+  }
+
   // Patients
   public static async getPatients(query?: string, page = 1, pageSize = 20, signal?: AbortSignal) {
     const token = this.getToken();

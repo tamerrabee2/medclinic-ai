@@ -37,7 +37,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>List prescriptions with optional filters</summary>
     [HttpGet]
-    [HasPermission(Permissions.MedicalRecordsRead)]
+    [HasPermission(Permissions.PrescriptionsRead)]
     public async Task<IActionResult> GetAll(
         [FromQuery] Guid?   patientId,
         [FromQuery] Guid?   doctorId,
@@ -101,7 +101,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>Get prescription with all items</summary>
     [HttpGet("{id:guid}")]
-    [HasPermission(Permissions.MedicalRecordsRead)]
+    [HasPermission(Permissions.PrescriptionsRead)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         var clinicId = ClinicId;
@@ -147,7 +147,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>Create a new prescription (with optional items)</summary>
     [HttpPost]
-    [HasPermission(Permissions.MedicalRecordsCreate)]
+    [HasPermission(Permissions.PrescriptionsCreate)]
     public async Task<IActionResult> Create(
         [FromBody] CreatePrescriptionRequest request,
         CancellationToken ct)
@@ -215,7 +215,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>Update prescription header (not items — use items endpoints)</summary>
     [HttpPut("{id:guid}")]
-    [HasPermission(Permissions.MedicalRecordsUpdate)]
+    [HasPermission(Permissions.PrescriptionsUpdate)]
     public async Task<IActionResult> Update(
         Guid id,
         [FromBody] UpdatePrescriptionRequest request,
@@ -269,7 +269,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>Add a medication item to a prescription</summary>
     [HttpPost("{id:guid}/items")]
-    [HasPermission(Permissions.MedicalRecordsUpdate)]
+    [HasPermission(Permissions.PrescriptionsUpdate)]
     public async Task<IActionResult> AddItem(
         Guid id,
         [FromBody] PrescriptionItemRequest request,
@@ -297,7 +297,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>Update a medication item</summary>
     [HttpPut("{id:guid}/items/{itemId:guid}")]
-    [HasPermission(Permissions.MedicalRecordsUpdate)]
+    [HasPermission(Permissions.PrescriptionsUpdate)]
     public async Task<IActionResult> UpdateItem(
         Guid id,
         Guid itemId,
@@ -334,7 +334,7 @@ public class PrescriptionsController : BaseController
 
     /// <summary>Remove a medication item from prescription</summary>
     [HttpDelete("{id:guid}/items/{itemId:guid}")]
-    [HasPermission(Permissions.MedicalRecordsUpdate)]
+    [HasPermission(Permissions.PrescriptionsUpdate)]
     public async Task<IActionResult> DeleteItem(
         Guid id,
         Guid itemId,

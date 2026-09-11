@@ -68,7 +68,7 @@ export const Sidebar: React.FC = () => {
         { href: '/dashboard/lab-analyzer', label: t.aiLabAnalyzer, icon: TestTubes, badge: 'Pipeline', requiredAnyPermissions: ['Lab.Read', 'AI.Assist'] },
         { href: '/dashboard/laboratory', label: t.labOrdersDesk, icon: FlaskConical, requiredPermission: 'Lab.Read' },
         { href: '/dashboard/radiology', label: t.radiologyPACS, icon: ScanLine, badge: 'Vision', requiredPermission: 'Radiology.Read' },
-        { href: '/dashboard/prescriptions', label: t.prescriptions, icon: Pill, requiredPermission: 'Prescriptions.Sign' },
+        { href: '/dashboard/prescriptions', label: t.prescriptions, icon: Pill, requiredAnyPermissions: ['Prescriptions.Read', 'Prescriptions.Sign'] },
       ]
     },
     {
@@ -80,7 +80,7 @@ export const Sidebar: React.FC = () => {
         { href: '/dashboard/staff', label: t.clinicStaff, icon: Users, requiredPermission: 'Users.Read' },
         { href: '/dashboard/audit-logs', label: t.auditLogs, icon: ShieldAlert, requiredAnyPermissions: ['AIDecisions.View', 'AuditLogs.Read'] },
         { href: '/dashboard/superadmin', label: 'Super Admin', icon: ShieldCheck, badge: 'Platform', requiredRoles: ['SuperAdmin'] },
-        { href: '/dashboard/notifications', label: t.notifications, icon: Bell, badge: '3' },
+        { href: '/dashboard/notifications', label: t.notifications, icon: Bell, badge: '3', requiredPermission: 'Notifications.Read' },
       ]
     }
   ];

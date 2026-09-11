@@ -11,6 +11,7 @@ import {
   hasRole as checkRole,
   hasAnyRole as checkAnyRole,
 } from './permissions';
+import { ApiClient } from './api';
 
 export interface User {
   id: string;
@@ -37,21 +38,30 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function hydrateUserPermissions(user: User, token?: string): User {
+  const isDemoToken = !token || token.startsWith('demo_');
+
+  if (!isDemoToken && token) {
+    // In Production: Cryptographic JWT Claims are the single source of truth.
+    // Untrusted localStorage modifications are overridden by cryptographically signed claims.
+    const jwtClaims = parseJwtClaims(token);
+    const verifiedRoles = jwtClaims.roles.length > 0 ? jwtClaims.roles : user.roles;
+    const verifiedPerms = jwtClaims.permissions.length > 0 ? jwtClaims.permissions : user.permissions || [];
+
+    return {
+      ...user,
+      roles: verifiedRoles,
+      permissions: verifiedPerms,
+    };
+  }
+
+  // Demo / Mock Mode: Map static permissions for offline mock demonstration sessions
   if (user.permissions && user.permissions.length > 0) {
     return user;
   }
-
-  let claimsPerms: string[] = [];
-  if (token) {
-    claimsPerms = parseJwtClaims(token).permissions;
-  }
-
   const rolePerms = getPermissionsForRoles(user.roles || []);
-  const combined = Array.from(new Set([...claimsPerms, ...rolePerms]));
-
   return {
     ...user,
-    permissions: combined,
+    permissions: rolePerms,
   };
 }
 
@@ -73,6 +83,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const hydrated = hydrateUserPermissions(parsedUser, storedToken);
         setUser(hydrated);
         setClinicId(storedClinic);
+
+        // If it's a real backend session, asynchronously reconcile with GET /api/v1/auth/me
+        if (!storedToken.startsWith('demo_')) {
+          ApiClient.getMe()
+            .then((res) => {
+              if (res && res.data) {
+                const serverUser = res.data;
+                const reconciled: User = {
+                  id: serverUser.id,
+                  email: serverUser.email,
+                  firstName: serverUser.fullName?.split(' ')[0] || hydrated.firstName,
+                  lastName: serverUser.fullName?.split(' ').slice(1).join(' ') || hydrated.lastName,
+                  roles: serverUser.roles || hydrated.roles,
+                  permissions: serverUser.permissions || hydrated.permissions,
+                  clinicId: storedClinic || undefined,
+                  clinicName: serverUser.clinics?.[0]?.name || hydrated.clinicName,
+                };
+                setUser(reconciled);
+                localStorage.setItem('medclinic_user', JSON.stringify(reconciled));
+              }
+            })
+            .catch((err) => {
+              console.warn('Session server verification warning:', err);
+            });
+        }
       }
     } catch (e) {
       console.error('Failed to load auth state', e);

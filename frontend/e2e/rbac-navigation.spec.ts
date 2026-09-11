@@ -57,7 +57,7 @@ test.describe('RBAC Navigation & Least Privilege Visibility', () => {
     await expect(page.locator('aside a[href="/dashboard/users"]')).toHaveCount(0);
   });
 
-  test('Nurse sees patients, visits and labs, but cannot see Super Admin, Prescriptions or AI Assistant', async ({ page }) => {
+  test('Nurse sees patients, visits, labs and read-only prescriptions, but cannot see Super Admin, Users or AI Assistant', async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem('medclinic_token', 'demo_token_nurse');
       localStorage.setItem(
@@ -78,10 +78,11 @@ test.describe('RBAC Navigation & Least Privilege Visibility', () => {
     await expect(page.locator('aside a[href="/dashboard/patients"]')).toBeVisible();
     await expect(page.locator('aside a[href="/dashboard/visits"]')).toBeVisible();
     await expect(page.locator('aside a[href="/dashboard/appointments"]')).toBeVisible();
+    await expect(page.locator('aside a[href="/dashboard/prescriptions"]')).toBeVisible();
 
     // Unauthorized links must be hidden
     await expect(page.locator('aside a[href="/dashboard/superadmin"]')).toHaveCount(0);
-    await expect(page.locator('aside a[href="/dashboard/prescriptions"]')).toHaveCount(0);
+    await expect(page.locator('aside a[href="/dashboard/users"]')).toHaveCount(0);
     await expect(page.locator('aside a[href="/dashboard/ai-assistant"]')).toHaveCount(0);
     await expect(page.locator('aside a[href="/dashboard/audit-logs"]')).toHaveCount(0);
   });

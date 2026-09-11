@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useMemo } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { isRouteAuthorized } from '@/lib/permissions';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Navbar } from '@/components/layout/Navbar';
 import { Loader2 } from 'lucide-react';
@@ -12,19 +13,40 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isAuthorized = useMemo(() => {
+    if (!isAuthenticated || !user) return false;
+    return isRouteAuthorized(pathname, user);
+  }, [isAuthenticated, user, pathname]);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push('/login');
+    if (!isLoading) {
+      if (!isAuthenticated) {
+        router.replace('/login');
+      } else if (!isAuthorized) {
+        router.replace('/unauthorized');
+      }
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, isAuthorized, router]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-sky-400">
         <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || !isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-400">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
+          <span className="text-xs font-mono">Verifying authorization...</span>
+        </div>
       </div>
     );
   }
