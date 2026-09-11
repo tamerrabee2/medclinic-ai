@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Shield, Send, Loader2, Search } from "lucide-react";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 export default function InsurancePage() {
   const [payloadJson, setPayloadJson] = useState('{\n  "invoiceCode": "INV-001",\n  "diagnosis": "Hypertension"\n}');
@@ -51,13 +52,17 @@ export default function InsurancePage() {
           className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm dark:border-gray-700 dark:bg-gray-800"
         />
         <div className="flex gap-2">
-          <button onClick={() => submitMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-            {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit Claim
-          </button>
-          {claim && (
-            <button onClick={() => statusMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white hover:bg-teal-700">
-              {statusMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Check Status
+          <PermissionGate permission="Billing.Create">
+            <button onClick={() => submitMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+              {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit Claim
             </button>
+          </PermissionGate>
+          {claim && (
+            <PermissionGate permission="Billing.Read">
+              <button onClick={() => statusMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white hover:bg-teal-700">
+                {statusMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Check Status
+              </button>
+            </PermissionGate>
           )}
         </div>
       </div>

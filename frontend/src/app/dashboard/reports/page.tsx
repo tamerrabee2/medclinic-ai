@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, TrendingUp, Users, Calendar, FlaskConical, Image, Brain, DollarSign, Loader2, Download } from "lucide-react";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 const PRESETS = [
   { label: "Today", days: 0 },
@@ -60,9 +61,11 @@ export default function ReportsPage() {
               {p.label}
             </button>
           ))}
-          <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-600 dark:text-gray-300">
-            <Download className="w-4 h-4" /> Export
-          </button>
+          <PermissionGate permission="Reports.Export">
+            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-sm text-gray-600 dark:text-gray-300">
+              <Download className="w-4 h-4" /> Export
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

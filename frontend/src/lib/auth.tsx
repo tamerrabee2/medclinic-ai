@@ -34,6 +34,7 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   switchClinic: (clinicId: string, clinicName?: string) => void;
+  hasPermission: (permission: Permission | string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -199,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         switchClinic,
+        hasPermission: (permission: Permission | string) => checkPermission(user, permission),
       }}
     >
       {children}

@@ -22,7 +22,7 @@ export function AiConsentBlockingModal({
   onConsentGranted
 }: AiConsentBlockingModalProps) {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isRtl = language === 'ar';
 
   const [loading, setLoading] = useState(false);
@@ -30,7 +30,7 @@ export function AiConsentBlockingModal({
 
   if (!isOpen) return null;
 
-  const canGrant = user?.roles?.some(r => ['Doctor', 'ClinicAdmin', 'SuperAdmin', 'Nurse'].includes(r));
+  const canGrant = hasPermission('PatientConsents.Manage');
 
   const handleGrantNow = async () => {
     try {

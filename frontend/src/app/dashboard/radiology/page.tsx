@@ -21,7 +21,8 @@ import {
   Layers,
   Activity,
   User,
-  Download
+  Download,
+  Upload
 } from 'lucide-react';
 
 interface ModalityScan {
@@ -131,25 +132,37 @@ export default function RadiologyViewerPage() {
           </p>
         </div>
 
-        {/* Scan Selector Tabs */}
-        <div className="flex items-center gap-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
-          {SCANS.map((s) => (
+        <div className="flex items-center gap-3">
+          <PermissionGate permission="Radiology.Create">
             <button
-              key={s.id}
-              onClick={() => {
-                setSelectedScan(s);
-                setIsReviewed(false);
-              }}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-                selectedScan.id === s.id
-                  ? 'bg-sky-500 text-white shadow-md'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-              }`}
+              onClick={() => alert('DICOM Upload Gateway: Ready for DICOM Web STOW-RS')}
+              className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1.5 transition shadow-lg shadow-sky-600/20"
             >
-              <Layers className="w-3.5 h-3.5" />
-              <span>{s.name.split(' ')[0]}</span>
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload DICOM</span>
             </button>
-          ))}
+          </PermissionGate>
+
+          {/* Scan Selector Tabs */}
+          <div className="flex items-center gap-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+            {SCANS.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setSelectedScan(s);
+                  setIsReviewed(false);
+                }}
+                className={`px-3 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                  selectedScan.id === s.id
+                    ? 'bg-sky-500 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>{s.name.split(' ')[0]}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

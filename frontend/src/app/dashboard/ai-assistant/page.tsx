@@ -19,6 +19,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { AiConsentBlockingModal } from '@/components/ai/AiConsentBlockingModal';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 
 interface Message {
   id: string;
@@ -525,14 +526,16 @@ export default function AIAssistantPage() {
           placeholder="Ask AI Copilot about symptoms, lab results, differential diagnosis, or guidelines..."
           className="flex-1 px-4 py-3 bg-slate-900/90 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition shadow-inner"
         />
-        <button
-          type="submit"
-          disabled={loading || !input.trim()}
-          className="px-5 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 disabled:opacity-50 text-white font-medium text-sm shadow-md shadow-sky-500/20 transition flex items-center justify-center gap-2"
-        >
-          <Send className="w-4 h-4" />
-          <span className="hidden sm:inline">Send</span>
-        </button>
+        <PermissionGate permission="AI.Assist">
+          <button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="px-5 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 disabled:opacity-50 text-white font-medium text-sm shadow-md shadow-sky-500/20 transition flex items-center justify-center gap-2"
+          >
+            <Send className="w-4 h-4" />
+            <span className="hidden sm:inline">Send</span>
+          </button>
+        </PermissionGate>
       </form>
 
       {/* AI Consent Blocking Guard Modal */}

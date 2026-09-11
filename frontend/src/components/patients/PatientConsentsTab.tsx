@@ -60,7 +60,7 @@ const CONSENT_TYPES = [
 
 export function PatientConsentsTab({ patientId }: { patientId: string }) {
   const { t, language } = useLanguage();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const isRtl = language === 'ar';
 
   const [consents, setConsents] = useState<ConsentItem[]>([]);
@@ -79,15 +79,9 @@ export function PatientConsentsTab({ patientId }: { patientId: string }) {
   const [selectedConsentForRevoke, setSelectedConsentForRevoke] = useState<ConsentItem | null>(null);
   const [revocationReason, setRevocationReason] = useState('');
 
-  // RBAC checks
-  const userRoles = user?.roles || [];
-  const isDoctor = userRoles.includes('Doctor');
-  const isClinicAdmin = userRoles.includes('ClinicAdmin') || userRoles.includes('SuperAdmin');
-  const isNurse = userRoles.includes('Nurse');
-  const isReceptionist = userRoles.includes('Receptionist') && !isDoctor && !isClinicAdmin && !isNurse;
-
-  const canManageConsents = isDoctor || isClinicAdmin || isNurse;
-  const canRevokeConsents = isDoctor || isClinicAdmin; // Nurse and Receptionist cannot revoke
+  // RBAC checks - Authoritative permission based
+  const canManageConsents = hasPermission('PatientConsents.Manage');
+  const canRevokeConsents = hasPermission('PatientConsents.Revoke');
 
   const loadData = async () => {
     try {

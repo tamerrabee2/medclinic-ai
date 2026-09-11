@@ -26,6 +26,7 @@ import { ApiClient } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { useAuth } from '@/lib/auth';
 import { RouteGuard } from '@/components/auth/RouteGuard';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 
 interface ConsentAuditRow {
   id: string;
@@ -324,13 +325,15 @@ export default function AuditLogsPage() {
           </p>
         </div>
 
-        <button
-          onClick={handleExportCsv}
-          className="px-4 py-2.5 rounded-xl border border-teal-500/30 bg-teal-950/40 hover:bg-teal-900/60 text-xs font-semibold text-teal-200 flex items-center gap-2 transition shadow-lg shadow-teal-950/40 self-start md:self-auto"
-        >
-          <Download className="w-4 h-4 text-teal-400" />
-          <span>{isRtl ? 'تصدير تقرير الامتثال (CSV)' : 'Export Compliance CSV'}</span>
-        </button>
+        <PermissionGate anyPermissions={['AIDecisions.Export', 'PatientConsents.Export', 'AuditLogs.Read']}>
+          <button
+            onClick={handleExportCsv}
+            className="px-4 py-2.5 rounded-xl border border-teal-500/30 bg-teal-950/40 hover:bg-teal-900/60 text-xs font-semibold text-teal-200 flex items-center gap-2 transition shadow-lg shadow-teal-950/40 self-start md:self-auto"
+          >
+            <Download className="w-4 h-4 text-teal-400" />
+            <span>{isRtl ? 'تصدير تقرير الامتثال (CSV)' : 'Export Compliance CSV'}</span>
+          </button>
+        </PermissionGate>
       </div>
 
       {/* Metric Cards */}

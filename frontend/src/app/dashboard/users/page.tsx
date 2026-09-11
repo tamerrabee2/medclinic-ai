@@ -529,28 +529,32 @@ export default function UsersManagementPage() {
                     {/* Actions */}
                     <td className="py-3 px-4 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => setShowResetPasswordModal(user)}
-                          title="إعادة تعيين كلمة المرور"
-                          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
-                        >
-                          <KeyRound className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleToggleUserStatus(user.id)}
-                          title={user.status === 'active' ? 'إيقاف الحساب' : 'تفعيل الحساب'}
-                          className={`p-1.5 rounded-lg hover:bg-slate-800 transition-colors ${
-                            user.status === 'active'
-                              ? 'text-slate-400 hover:text-rose-400'
-                              : 'text-slate-400 hover:text-emerald-400'
-                          }`}
-                        >
-                          {user.status === 'active' ? (
-                            <UserX className="w-3.5 h-3.5" />
-                          ) : (
-                            <UserCheck className="w-3.5 h-3.5" />
-                          )}
-                        </button>
+                        <PermissionGate permission="Users.Manage">
+                          <button
+                            onClick={() => setShowResetPasswordModal(user)}
+                            title="إعادة تعيين كلمة المرور"
+                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
+                          >
+                            <KeyRound className="w-3.5 h-3.5" />
+                          </button>
+                        </PermissionGate>
+                        <PermissionGate permission="Users.Manage">
+                          <button
+                            onClick={() => handleToggleUserStatus(user.id)}
+                            title={user.status === 'active' ? 'إيقاف الحساب' : 'تفعيل الحساب'}
+                            className={`p-1.5 rounded-lg hover:bg-slate-800 transition-colors ${
+                              user.status === 'active'
+                                ? 'text-slate-400 hover:text-rose-400'
+                                : 'text-slate-400 hover:text-emerald-400'
+                            }`}
+                          >
+                            {user.status === 'active' ? (
+                              <UserX className="w-3.5 h-3.5" />
+                            ) : (
+                              <UserCheck className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        </PermissionGate>
                       </div>
                     </td>
                   </tr>

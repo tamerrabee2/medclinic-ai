@@ -210,6 +210,15 @@ export default function PatientsPage() {
                       >
                         Dental
                       </a>
+                      <PermissionGate permission="Patients.Delete">
+                        <button
+                          onClick={() => setPatients(patients.filter((item) => item.id !== p.id))}
+                          className="inline-block px-2.5 py-1 rounded-lg glass-panel hover:border-rose-500/40 text-rose-400 text-xs font-medium transition"
+                          title="Delete Patient"
+                        >
+                          Delete
+                        </button>
+                      </PermissionGate>
                     </td>
                   </tr>
                 ))}

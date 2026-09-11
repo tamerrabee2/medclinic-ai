@@ -18,7 +18,8 @@ import {
   X,
   User,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import { RouteGuard } from '@/components/auth/RouteGuard';
 import { PermissionGate } from '@/components/auth/PermissionGate';
@@ -367,23 +368,34 @@ export default function BillingPage() {
                   </td>
 
                   <td className="py-3 px-3 text-right whitespace-nowrap">
-                    {inv.status !== 'paid' ? (
-                      <PermissionGate permission="Billing.Update">
+                    <div className="flex items-center justify-end gap-2">
+                      {inv.status !== 'paid' ? (
+                        <PermissionGate permission="Billing.Update">
+                          <button
+                            onClick={() => handleMarkAsPaid(inv.id)}
+                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition"
+                          >
+                            Settle Payment
+                          </button>
+                        </PermissionGate>
+                      ) : (
                         <button
-                          onClick={() => handleMarkAsPaid(inv.id)}
-                          className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition"
+                          onClick={() => window.print()}
+                          className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition inline-flex items-center gap-1"
                         >
-                          Settle Payment
+                          <Printer className="w-3 h-3" /> Receipt
+                        </button>
+                      )}
+                      <PermissionGate permission="Billing.Delete">
+                        <button
+                          onClick={() => setInvoices(invoices.filter((item) => item.id !== inv.id))}
+                          className="p-1 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                          title="Delete Invoice"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </PermissionGate>
-                    ) : (
-                      <button
-                        onClick={() => window.print()}
-                        className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition inline-flex items-center gap-1"
-                      >
-                        <Printer className="w-3 h-3" /> Receipt
-                      </button>
-                    )}
+                    </div>
                   </td>
                 </tr>
               ))}

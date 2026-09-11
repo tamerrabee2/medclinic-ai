@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Send, FlaskConical, Download, Loader2 } from "lucide-react";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 
 export default function ExternalLabsPage() {
   const [payloadJson, setPayloadJson] = useState('{\n  "tests": ["CBC", "HbA1c"]\n}');
@@ -51,13 +52,17 @@ export default function ExternalLabsPage() {
           className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm dark:border-gray-700 dark:bg-gray-800"
         />
         <div className="flex gap-2">
-          <button onClick={() => submitMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
-            {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit Order
-          </button>
-          {lastSync && (
-            <button onClick={() => fetchMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white hover:bg-teal-700">
-              {fetchMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Fetch Result
+          <PermissionGate permission="Lab.Create">
+            <button onClick={() => submitMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-white hover:bg-blue-700">
+              {submitMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Submit Order
             </button>
+          </PermissionGate>
+          {lastSync && (
+            <PermissionGate permission="Lab.EnterResults">
+              <button onClick={() => fetchMutation.mutate()} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-white hover:bg-teal-700">
+                {fetchMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Fetch Result
+              </button>
+            </PermissionGate>
           )}
         </div>
       </div>

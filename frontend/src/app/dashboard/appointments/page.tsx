@@ -171,22 +171,26 @@ export default function AppointmentsPage() {
                 </div>
 
                 <div className="flex items-center gap-2 self-end md:self-center">
-                  <button
-                    onClick={() => {
-                      setAppointments(appointments.map(a => a.id === apt.id ? { ...a, status: 'Completed' } : a));
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/30 transition"
-                  >
-                    Complete
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAppointments(appointments.map(a => a.id === apt.id ? { ...a, status: 'Cancelled' } : a));
-                    }}
-                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/30 transition"
-                  >
-                    Cancel
-                  </button>
+                  <PermissionGate permission="Appointments.Update">
+                    <button
+                      onClick={() => {
+                        setAppointments(appointments.map(a => a.id === apt.id ? { ...a, status: 'Completed' } : a));
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/30 transition"
+                    >
+                      Complete
+                    </button>
+                  </PermissionGate>
+                  <PermissionGate permission="Appointments.Cancel">
+                    <button
+                      onClick={() => {
+                        setAppointments(appointments.map(a => a.id === apt.id ? { ...a, status: 'Cancelled' } : a));
+                      }}
+                      className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/30 transition"
+                    >
+                      Cancel
+                    </button>
+                  </PermissionGate>
                 </div>
               </div>
             );
