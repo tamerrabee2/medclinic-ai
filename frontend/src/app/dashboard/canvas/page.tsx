@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   Activity,
   PenTool,
@@ -99,13 +100,15 @@ export default function CanvasBodyMapPage() {
           >
             Switch to {view === 'anterior' ? 'Posterior (Back)' : 'Anterior (Front)'} View
           </button>
-          <button
-            onClick={() => alert('Clinical annotations saved to patient record.')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-medium text-xs shadow-md"
-          >
-            <Save className="w-3.5 h-3.5" />
-            <span>Save Annotations</span>
-          </button>
+          <PermissionGate permission="MedicalRecords.Create">
+            <button
+              onClick={() => alert('Clinical annotations saved to patient record.')}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white font-medium text-xs shadow-md"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Save Annotations</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

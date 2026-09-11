@@ -22,6 +22,7 @@ dist/
 build/
 test-results/
 playwright-report/
+*.tsbuildinfo
 
 # Secrets
 *.pfx

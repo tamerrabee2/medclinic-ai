@@ -368,12 +368,14 @@ export default function BillingPage() {
 
                   <td className="py-3 px-3 text-right whitespace-nowrap">
                     {inv.status !== 'paid' ? (
-                      <button
-                        onClick={() => handleMarkAsPaid(inv.id)}
-                        className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition"
-                      >
-                        Settle Payment
-                      </button>
+                      <PermissionGate permission="Billing.Update">
+                        <button
+                          onClick={() => handleMarkAsPaid(inv.id)}
+                          className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition"
+                        >
+                          Settle Payment
+                        </button>
+                      </PermissionGate>
                     ) : (
                       <button
                         onClick={() => window.print()}

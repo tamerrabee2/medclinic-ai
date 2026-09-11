@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   TestTubes,
   UploadCloud,
@@ -435,13 +436,15 @@ export default function LabAnalyzerPage() {
                 </div>
               </div>
             ) : (
-              <button
-                onClick={handleSignOff}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Verify & Sign-Off Report</span>
-              </button>
+              <PermissionGate permission="Lab.Update">
+                <button
+                  onClick={handleSignOff}
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Verify & Sign-Off Report</span>
+                </button>
+              </PermissionGate>
             )}
 
             <div className="flex items-center gap-1.5 text-[10px] text-slate-500">

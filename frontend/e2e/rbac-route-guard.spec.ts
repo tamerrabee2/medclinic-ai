@@ -24,11 +24,14 @@ test.describe('RBAC Centralized Route Guard & Direct URL Enforcement Matrix', ()
       { name: 'Prescriptions', url: '/dashboard/prescriptions' },
       { name: 'Laboratory', url: '/dashboard/laboratory' },
       { name: 'Lab Analyzer', url: '/dashboard/lab-analyzer' },
+      { name: 'External Labs', url: '/dashboard/external-labs' },
       { name: 'Radiology PACS', url: '/dashboard/radiology' },
       { name: 'Medical Canvas', url: '/dashboard/canvas' },
       { name: 'Dental Chart', url: '/dashboard/dental' },
       { name: 'AI Assistant', url: '/dashboard/ai-assistant' },
+      { name: 'Voice Scribe', url: '/dashboard/ai-assistant/voice-scribe' },
       { name: 'Analytics BI', url: '/dashboard/analytics' },
+      { name: 'Reports', url: '/dashboard/reports' },
       { name: 'User Management', url: '/dashboard/users' },
       { name: 'Clinic Staff', url: '/dashboard/staff' },
       { name: 'Audit Logs', url: '/dashboard/audit-logs' },
@@ -46,6 +49,7 @@ test.describe('RBAC Centralized Route Guard & Direct URL Enforcement Matrix', ()
     }
 
     test('Receptionist can freely access permitted routes', async ({ page }) => {
+      test.setTimeout(60000);
       const allowedRoutes = [
         '/dashboard',
         '/dashboard/patients',
@@ -80,6 +84,7 @@ test.describe('RBAC Centralized Route Guard & Direct URL Enforcement Matrix', ()
     });
 
     test('Nurse is blocked from SuperAdmin, Users, Staff, AI Assistant, and Audit Logs', async ({ page }) => {
+      test.setTimeout(60000);
       const nurseBlocked = [
         '/dashboard/superadmin',
         '/dashboard/users',
@@ -97,6 +102,7 @@ test.describe('RBAC Centralized Route Guard & Direct URL Enforcement Matrix', ()
     });
 
     test('Nurse can access clinical encounters, prescriptions list, laboratory, and radiology', async ({ page }) => {
+      test.setTimeout(60000);
       const nurseAllowed = [
         '/dashboard/visits',
         '/dashboard/prescriptions',

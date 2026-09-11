@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   TestTubes,
   Plus,
@@ -171,13 +172,15 @@ export default function LaboratoryDeskPage() {
             <span>Open AI Lab Analyzer</span>
           </Link>
 
-          <button
-            onClick={() => setShowOrderModal(true)}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 flex items-center gap-2 transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create Lab Requisition</span>
-          </button>
+          <PermissionGate permission="Lab.Create">
+            <button
+              onClick={() => setShowOrderModal(true)}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-sm font-semibold text-white shadow-lg shadow-amber-500/20 flex items-center gap-2 transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Lab Requisition</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

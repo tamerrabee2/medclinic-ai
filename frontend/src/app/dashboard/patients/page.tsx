@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ApiClient } from '@/lib/api';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   Users,
   Search,
@@ -117,13 +118,15 @@ export default function PatientsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-medium text-sm shadow-md shadow-sky-500/20 transition self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add New Patient</span>
-        </button>
+        <PermissionGate permission="Patients.Create">
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-medium text-sm shadow-md shadow-sky-500/20 transition self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add New Patient</span>
+          </button>
+        </PermissionGate>
       </div>
 
       {/* Search Bar */}

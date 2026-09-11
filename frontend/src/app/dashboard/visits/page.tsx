@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   Stethoscope,
   User,
@@ -137,13 +138,15 @@ export default function VisitsPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={handleSaveVisit}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 flex items-center gap-2 transition"
-          >
-            <Save className="w-4 h-4" />
-            <span>{isSaved ? 'Encounter Finalized ✓' : 'Finalize & Save Encounter'}</span>
-          </button>
+          <PermissionGate permission="MedicalRecords.Create">
+            <button
+              onClick={handleSaveVisit}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-sm font-semibold text-white shadow-lg shadow-sky-500/20 flex items-center gap-2 transition"
+            >
+              <Save className="w-4 h-4" />
+              <span>{isSaved ? 'Encounter Finalized ✓' : 'Finalize & Save Encounter'}</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 

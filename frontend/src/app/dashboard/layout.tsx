@@ -13,26 +13,26 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, authorizationHydrated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   const isAuthorized = useMemo(() => {
-    if (!isAuthenticated || !user) return false;
+    if (!isAuthenticated || !user || !authorizationHydrated) return false;
     return isRouteAuthorized(pathname, user);
-  }, [isAuthenticated, user, pathname]);
+  }, [isAuthenticated, user, pathname, authorizationHydrated]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && authorizationHydrated) {
       if (!isAuthenticated) {
         router.replace('/login');
       } else if (!isAuthorized) {
         router.replace('/unauthorized');
       }
     }
-  }, [isAuthenticated, isLoading, isAuthorized, router]);
+  }, [isAuthenticated, isLoading, authorizationHydrated, isAuthorized, router]);
 
-  if (isLoading) {
+  if (isLoading || !authorizationHydrated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-950 text-sky-400">
         <Loader2 className="w-8 h-8 animate-spin" />

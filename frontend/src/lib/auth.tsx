@@ -30,6 +30,7 @@ interface AuthContextType {
   clinicId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authorizationHydrated: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
   switchClinic: (clinicId: string, clinicName?: string) => void;
@@ -41,20 +42,18 @@ function hydrateUserPermissions(user: User, token?: string): User {
   const isDemoToken = !token || token.startsWith('demo_');
 
   if (!isDemoToken && token) {
-    // In Production: Cryptographic JWT Claims are the single source of truth.
-    // Untrusted localStorage modifications are overridden by cryptographically signed claims.
+    // In Production: Cryptographic JWT Claims and /api/v1/auth/me are the single source of truth.
+    // Untrusted localStorage roles or permissions are never trusted or fallen back to.
     const jwtClaims = parseJwtClaims(token);
-    const verifiedRoles = jwtClaims.roles.length > 0 ? jwtClaims.roles : user.roles;
-    const verifiedPerms = jwtClaims.permissions.length > 0 ? jwtClaims.permissions : user.permissions || [];
 
     return {
       ...user,
-      roles: verifiedRoles,
-      permissions: verifiedPerms,
+      roles: jwtClaims.roles,
+      permissions: jwtClaims.permissions,
     };
   }
 
-  // Demo / Mock Mode: Map static permissions for offline mock demonstration sessions
+  // Demo / Mock Mode: Map static permissions strictly for offline mock demonstration sessions
   if (user.permissions && user.permissions.length > 0) {
     return user;
   }
@@ -70,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [clinicId, setClinicId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authorizationHydrated, setAuthorizationHydrated] = useState(false);
 
   useEffect(() => {
     try {
@@ -79,13 +79,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        const parsedUser = JSON.parse(storedUser) as User;
-        const hydrated = hydrateUserPermissions(parsedUser, storedToken);
-        setUser(hydrated);
         setClinicId(storedClinic);
+        const parsedUser = JSON.parse(storedUser) as User;
 
-        // If it's a real backend session, asynchronously reconcile with GET /api/v1/auth/me
-        if (!storedToken.startsWith('demo_')) {
+        if (storedToken.startsWith('demo_')) {
+          // Demo Mode: Immediate static hydration
+          const hydrated = hydrateUserPermissions(parsedUser, storedToken);
+          setUser(hydrated);
+          setIsLoading(false);
+          setAuthorizationHydrated(true);
+        } else {
+          // Production Mode: Zero trust in localStorage.
+          // Cryptographically decode initial JWT claims for non-privileged scaffolding,
+          // but hold authorizationHydrated=false until /api/v1/auth/me confirms identity.
+          const jwtClaims = parseJwtClaims(storedToken);
+          const initialUser: User = {
+            id: parsedUser.id,
+            email: parsedUser.email,
+            firstName: parsedUser.firstName,
+            lastName: parsedUser.lastName,
+            roles: jwtClaims.roles,
+            permissions: jwtClaims.permissions,
+            clinicId: storedClinic || undefined,
+            clinicName: parsedUser.clinicName,
+          };
+          setUser(initialUser);
+          setIsLoading(false);
+
+          // Asynchronously verify with authoritative server endpoint GET /api/v1/auth/me
           ApiClient.getMe()
             .then((res) => {
               if (res && res.data) {
@@ -93,26 +114,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const reconciled: User = {
                   id: serverUser.id,
                   email: serverUser.email,
-                  firstName: serverUser.fullName?.split(' ')[0] || hydrated.firstName,
-                  lastName: serverUser.fullName?.split(' ').slice(1).join(' ') || hydrated.lastName,
-                  roles: serverUser.roles || hydrated.roles,
-                  permissions: serverUser.permissions || hydrated.permissions,
+                  firstName: serverUser.fullName?.split(' ')[0] || initialUser.firstName,
+                  lastName: serverUser.fullName?.split(' ').slice(1).join(' ') || initialUser.lastName,
+                  roles: serverUser.roles || jwtClaims.roles || [],
+                  permissions: serverUser.permissions || jwtClaims.permissions || [],
                   clinicId: storedClinic || undefined,
-                  clinicName: serverUser.clinics?.[0]?.name || hydrated.clinicName,
+                  clinicName: serverUser.clinics?.[0]?.name || initialUser.clinicName,
                 };
                 setUser(reconciled);
                 localStorage.setItem('medclinic_user', JSON.stringify(reconciled));
+                setAuthorizationHydrated(true);
+              } else {
+                throw new Error('Invalid /api/v1/auth/me payload');
               }
             })
             .catch((err) => {
-              console.warn('Session server verification warning:', err);
+              console.error('Authoritative auth/me check failed. Invalidating session:', err);
+              // Clear session and redirect to /login
+              setToken(null);
+              setUser(null);
+              setClinicId(null);
+              setAuthorizationHydrated(false);
+              localStorage.removeItem('medclinic_token');
+              localStorage.removeItem('medclinic_user');
+              localStorage.removeItem('medclinic_clinic_id');
+              window.location.href = '/login';
             });
         }
+      } else {
+        setIsLoading(false);
+        setAuthorizationHydrated(true);
       }
     } catch (e) {
       console.error('Failed to load auth state', e);
-    } finally {
       setIsLoading(false);
+      setAuthorizationHydrated(true);
     }
   }, []);
 
@@ -121,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(newToken);
     setUser(hydratedUser);
     setClinicId(hydratedUser.clinicId || null);
+    setAuthorizationHydrated(true);
 
     localStorage.setItem('medclinic_token', newToken);
     localStorage.setItem('medclinic_user', JSON.stringify(hydratedUser));
@@ -133,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     setUser(null);
     setClinicId(null);
+    setAuthorizationHydrated(false);
     localStorage.removeItem('medclinic_token');
     localStorage.removeItem('medclinic_user');
     localStorage.removeItem('medclinic_clinic_id');
@@ -157,6 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         clinicId,
         isAuthenticated: !!token,
         isLoading,
+        authorizationHydrated,
         login,
         logout,
         switchClinic,

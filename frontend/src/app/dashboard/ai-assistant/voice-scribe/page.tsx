@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { PermissionGate } from "@/components/auth/PermissionGate";
 import { Mic, MicOff, Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 type RecordingState = "idle" | "recording" | "stopped" | "uploading" | "transcribing" | "done" | "error";
@@ -147,13 +148,15 @@ export default function VoiceScribePage() {
               </div>
             ))}
           </div>
-          <button
-            onClick={handleApprove}
-            className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2"
-          >
-            <CheckCircle className="w-5 h-5" />
-            Approve & Save to Medical Record
-          </button>
+          <PermissionGate permission="MedicalRecords.Create">
+            <button
+              onClick={handleApprove}
+              className="w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-medium flex items-center justify-center gap-2"
+            >
+              <CheckCircle className="w-5 h-5" />
+              Approve & Save to Medical Record
+            </button>
+          </PermissionGate>
         </div>
       )}
 

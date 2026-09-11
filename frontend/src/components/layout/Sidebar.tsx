@@ -25,7 +25,10 @@ import {
   TrendingUp,
   ShieldAlert,
   FlaskConical,
-  UserCheck
+  UserCheck,
+  BarChart3,
+  Shield,
+  Network
 } from 'lucide-react';
 
 interface NavItem {
@@ -45,8 +48,8 @@ interface NavGroup {
 
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
-  const { user, logout, clinicId } = useAuth();
-  const { hasPermission, hasAnyPermission, hasRole, hasAnyRole } = usePermissions();
+  const { user, clinicId, logout } = useAuth();
+  const { hasRole, hasAnyRole, hasPermission, hasAnyPermission } = usePermissions();
   const { t } = useLanguage();
 
   const NAV_GROUPS: NavGroup[] = [
@@ -67,6 +70,7 @@ export const Sidebar: React.FC = () => {
         { href: '/dashboard/ai-assistant', label: t.aiAssistant, icon: Sparkles, badge: 'AI', requiredPermission: 'AI.Assist' },
         { href: '/dashboard/lab-analyzer', label: t.aiLabAnalyzer, icon: TestTubes, badge: 'Pipeline', requiredAnyPermissions: ['Lab.Read', 'AI.Assist'] },
         { href: '/dashboard/laboratory', label: t.labOrdersDesk, icon: FlaskConical, requiredPermission: 'Lab.Read' },
+        { href: '/dashboard/external-labs', label: 'External Labs', icon: Network, requiredAnyPermissions: ['Lab.Read', 'Lab.Create'] },
         { href: '/dashboard/radiology', label: t.radiologyPACS, icon: ScanLine, badge: 'Vision', requiredPermission: 'Radiology.Read' },
         { href: '/dashboard/prescriptions', label: t.prescriptions, icon: Pill, requiredAnyPermissions: ['Prescriptions.Read', 'Prescriptions.Sign'] },
       ]
@@ -75,7 +79,9 @@ export const Sidebar: React.FC = () => {
       title: t.operationsAndManagement,
       items: [
         { href: '/dashboard/billing', label: t.billing, icon: ReceiptText, requiredPermission: 'Billing.Read' },
+        { href: '/dashboard/insurance', label: 'Insurance Claims', icon: Shield, requiredPermission: 'Billing.Read' },
         { href: '/dashboard/analytics', label: t.analytics, icon: TrendingUp, requiredPermission: 'Reports.Read' },
+        { href: '/dashboard/reports', label: 'Reports', icon: BarChart3, requiredPermission: 'Reports.Read' },
         { href: '/dashboard/users', label: t.userAccounts, icon: UserCheck, requiredPermission: 'Users.Read' },
         { href: '/dashboard/staff', label: t.clinicStaff, icon: Users, requiredPermission: 'Users.Read' },
         { href: '/dashboard/audit-logs', label: t.auditLogs, icon: ShieldAlert, requiredAnyPermissions: ['AIDecisions.View', 'AuditLogs.Read'] },

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   ScanLine,
   ZoomIn,
@@ -457,13 +458,15 @@ export default function RadiologyViewerPage() {
                 </div>
               </div>
             ) : (
-              <button
-                onClick={() => setIsReviewed(true)}
-                className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Validate & Finalize PACS Report</span>
-              </button>
+              <PermissionGate permission="Radiology.Report">
+                <button
+                  onClick={() => setIsReviewed(true)}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/20 transition flex items-center justify-center gap-2"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Validate & Finalize PACS Report</span>
+                </button>
+              </PermissionGate>
             )}
           </div>
         </div>

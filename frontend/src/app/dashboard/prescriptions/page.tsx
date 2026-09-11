@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   Pill,
   Plus,
@@ -138,14 +139,16 @@ export default function PrescriptionsPage() {
             <span>Preview Official Rx</span>
           </button>
 
-          <button
-            onClick={() => setIsPrescribed(true)}
-            disabled={items.length === 0 || hasPenicillinConflict}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-400 hover:to-sky-500 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 flex items-center gap-2 transition disabled:opacity-50"
-          >
-            <FileCheck className="w-4 h-4" />
-            <span>{isPrescribed ? 'Transmitted to Pharmacy' : 'Sign & Transmit Rx'}</span>
-          </button>
+          <PermissionGate permission="Prescriptions.Sign">
+            <button
+              onClick={() => setIsPrescribed(true)}
+              disabled={items.length === 0 || hasPenicillinConflict}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-sky-600 hover:from-teal-400 hover:to-sky-500 text-sm font-semibold text-white shadow-lg shadow-teal-500/20 flex items-center gap-2 transition disabled:opacity-50"
+            >
+              <FileCheck className="w-4 h-4" />
+              <span>{isPrescribed ? 'Transmitted to Pharmacy' : 'Sign & Transmit Rx'}</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 
@@ -302,13 +305,15 @@ export default function PrescriptionsPage() {
               </div>
             </div>
 
-            <button
-              onClick={handleAddMedication}
-              className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add to Active Prescription</span>
-            </button>
+            <PermissionGate permission="Prescriptions.Create">
+              <button
+                onClick={handleAddMedication}
+                className="w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add to Active Prescription</span>
+              </button>
+            </PermissionGate>
           </div>
         </div>
 

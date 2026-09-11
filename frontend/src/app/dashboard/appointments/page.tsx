@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ApiClient } from '@/lib/api';
+import { PermissionGate } from '@/components/auth/PermissionGate';
 import {
   CalendarDays,
   Clock,
@@ -116,13 +117,15 @@ export default function AppointmentsPage() {
             onChange={(e) => setSelectedDate(e.target.value)}
             className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-sky-500"
           />
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-medium text-sm shadow-md shadow-sky-500/20 transition"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Book Appointment</span>
-          </button>
+          <PermissionGate permission="Appointments.Create">
+            <button
+              onClick={() => setShowModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-medium text-sm shadow-md shadow-sky-500/20 transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Book Appointment</span>
+            </button>
+          </PermissionGate>
         </div>
       </div>
 
